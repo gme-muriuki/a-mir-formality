@@ -99,6 +99,30 @@ fn covered_VecT() {
 }
 
 #[test]
+fn raw_pointer_is_not_fundamental() {
+    FormalityTest::new(crates![crate core {
+        trait CoreTrait {}
+    },
+    crate foo {
+        struct FooStruct {}
+        impl CoreTrait for *mut FooStruct {}
+    }])
+    .skip_execute()
+    .err(expect_test::expect![[r#"
+        the rule "fundamental rigid type" at (is_local.rs) failed because
+          condition evaluated to false: `is_fundamental(decls, name)`
+            decls = program([crate core { trait CoreTrait <ty> { } }, crate foo { struct FooStruct { } impl CoreTrait for *mut FooStruct { } }], 222)
+            name = * mut
+
+        crates/formality-rust/src/prove/prove_normalize.rs:18:1: no applicable rules for prove_normalize { p: *mut FooStruct, assumptions: {}, env: Env { variables: [], bias: Soundness, pending: [], allow_pending_outlives: false } }
+
+        the rule "local trait" at (is_local.rs) failed because
+          condition evaluated to false: `decls.is_local_trait_id(&goal.trait_id)`
+            decls = program([crate core { trait CoreTrait <ty> { } }, crate foo { struct FooStruct { } impl CoreTrait for *mut FooStruct { } }], 222)
+            &goal.trait_id = CoreTrait"#]])
+}
+
+#[test]
 fn uncovered_T() {
     FormalityTest::new(crates![crate core {
                 trait CoreTrait<T> {}
