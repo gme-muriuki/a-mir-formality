@@ -1124,7 +1124,7 @@ fn move_out_of_mut_ref() {
                 fn foo() -> Datum {
                     exists<'r0, 'r1> {
                         let x: Datum = Datum { value: 0_u32 };
-                        let r: &'r0 mut Datum = &mut 'r1 x;
+                        let r: &'r0 mut Datum = &'r1 mut x;
                         let y: Datum = *r;
                         return y;
                     }
@@ -1892,7 +1892,7 @@ fn mutable_ref_prevents_mutation() {
                 fn foo() -> i32 {
                     exists<'r0, 'r1> {
                         let v1: i32 = 0_i32;
-                        let v2: &'r0 mut i32 = &mut 'r1 v1;
+                        let v2: &'r0 mut i32 = &'r1 mut v1;
                         // This should result in an error
                         v1 = 1_i32;
                         return *v2;
@@ -1971,11 +1971,11 @@ const MIN_PROBLEM_CASE_3: &str = "
 
     fn min_problem_case_3<'a>(m: &'a mut Map) -> &'a mut Map {
         exists<'r0, 'r1> {
-            let n: &'r0 mut Map = &mut 'r0 *m;
+            let n: &'r0 mut Map = &'r0 mut *m;
             if true {
                 return n;
             } else {
-                let o: &'r1 mut Map = &mut 'r1 *m;
+                let o: &'r1 mut Map = &'r1 mut *m;
                 return o;
             }
         }
@@ -2125,7 +2125,7 @@ fn drop_while_mutably_borrowed() {
                         let v2: &'r0 mut i32;
                         {
                             let v1: i32 = 0_i32;
-                            v2 = &mut 'r1 v1;
+                            v2 = &'r1 mut v1;
                         }
                         return *v2;
                     }
@@ -2207,11 +2207,11 @@ fn too_min_problem_case_3() {
 
         fn min_problem_case_3<'a>(m: &'a mut Map) -> &'a mut Map {
             exists<'r0, 'r1> {
-                let n: &'r0 mut Map = &mut 'r0 *m;
+                let n: &'r0 mut Map = &'r0 mut *m;
                 if true {
                 } else {
                 }
-                let o: &'r1 mut Map = &mut 'r1 *m;
+                let o: &'r1 mut Map = &'r1 mut *m;
                 return o;
             }
         }
@@ -2330,8 +2330,8 @@ fn problem_case_4() {
 
         fn min_problem_case_4<'a>(list: &'a mut Map, list2: &'a mut Map) -> u32 {
             exists<'r0> {
-                let num: &'r0 mut u32 = &mut 'r0 (*list).value;
-                list = &mut 'a *list2;
+                let num: &'r0 mut u32 = &'r0 mut (*list).value;
+                list = &'a mut *list2;
                 num;
                 return 0_u32;
             }
@@ -2457,13 +2457,13 @@ fn cfg_union_approx_cause_false_error() {
                 // In Rustc, the 1-tuple is needed for some reason
                 // Niko does not 100% understand, else rustc is able to
                 // see that this program is safe.
-                let q: &'l_q mut u32 = &mut 'loan_0 a;
-                let p: &'l_p mut u32 = &mut 'loan_1 a;
+                let q: &'l_q mut u32 = &'loan_0 mut a;
+                let p: &'l_p mut u32 = &'loan_1 mut a;
                 if true {
-                    p = &mut 'loan_1 a;
-                    q = &mut 'loan_2 b;
+                    p = &'loan_1 mut a;
+                    q = &'loan_2 mut b;
                 } else {
-                    p = &mut 'loan_3 b;
+                    p = &'loan_3 mut b;
                 }
                 *q = 1_u32;
                 return *p;
@@ -2780,11 +2780,11 @@ const IF_FALSE_BORROWCK: &str = "
 
     fn foo<'a>(m: &'a mut Map) -> &'a mut Map {
         exists<'r0, 'r1> {
-            let n: &'r0 mut Map = &mut 'r0 *m;
+            let n: &'r0 mut Map = &'r0 mut *m;
             if false {
                 return n;
             } else {
-                let o: &'r1 mut Map = &mut 'r1 *m;
+                let o: &'r1 mut Map = &'r1 mut *m;
                 return o;
             }
         }
@@ -3042,7 +3042,7 @@ fn call_mut_under_shared_borrow() {
                     exists<'r0, 'r1, 'r2> {
                         let v: u32 = 0_u32;
                         let p: &'r0 u32 = &'r1 v;
-                        let _: u32 = foo::<'r2>(&mut 'r2 v);
+                        let _: u32 = foo::<'r2>(&'r2 mut v);
                         return *p;
                     }
                 }
@@ -3069,8 +3069,8 @@ fn struct_disjoint_field_borrows() {
         fn foo() -> u32 {
             exists<'r0, 'r1, 'r2, 'r3> {
                 let p: Point = Point { x: 0_u32, y: 0_u32 };
-                let b1: &'r0 mut u32 = &mut 'r1 p.x;
-                let b2: &'r2 mut u32 = &mut 'r3 p.y;
+                let b1: &'r0 mut u32 = &'r1 mut p.x;
+                let b2: &'r2 mut u32 = &'r3 mut p.y;
                 *b1 = 1_u32;
                 *b2 = 2_u32;
                 return 0_u32;
@@ -3089,7 +3089,7 @@ fn struct_conflicting_field_borrows() {
                 fn foo() -> u32 {
                     exists<'r0, 'r1> {
                         let p: Point = Point { x: 0_u32, y: 0_u32 };
-                        let b1: &'r0 mut u32 = &mut 'r1 p.x;
+                        let b1: &'r0 mut u32 = &'r1 mut p.x;
                         p.x = 1_u32;
                         return *b1;
                     }
@@ -3122,7 +3122,7 @@ fn struct_construction_with_borrowed_local() {
         fn foo() -> u32 {
             exists<'r0, 'r1> {
                 let v1: u32 = 22_u32;
-                let v2: &'r0 mut u32 = &mut 'r1 v1;
+                let v2: &'r0 mut u32 = &'r1 mut v1;
                 let w: Wrapper = Wrapper { value: v1 };
                 return *v2;
             }
@@ -3160,7 +3160,7 @@ fn struct_with_mutable_reference_locks_local() {
                 fn foo() -> u32 {
                     exists<'r0> {
                         let v1: u32 = 0_u32;
-                        let w: Wrapper<'r0> = Wrapper::<'r0> { value: &mut 'r0 v1 };
+                        let w: Wrapper<'r0> = Wrapper::<'r0> { value: &'r0 mut v1 };
                         v1 = 1_u32;
                         return *(w.value);
                     }
@@ -3187,11 +3187,11 @@ fn loan_before_return_does_not_affect_merged_paths() {
         fn reborrow<'a>(a: &'a mut u8) -> &'a mut u8 {
             exists<'r0, 'r1, 'r2, 'r3> {
                 if true {
-                    let b: &'r1 mut u8 = &mut 'r0 *a;
+                    let b: &'r1 mut u8 = &'r0 mut *a;
                     return b;
                 } else { }
 
-                let c: &'r3 mut u8 = &mut 'r2 *a;
+                let c: &'r3 mut u8 = &'r2 mut *a;
                 return c;
             }
         }
@@ -3205,7 +3205,7 @@ const OUTLIVE_BEFORE_RETURN_DOES_NOT_AFFECT_MERGED_PATHS: &str = "
     fn reborrow<'a>(a: &'a mut u8) -> &'a mut u8 {
         exists<'r0, 'r1, 'r2, 'r3> {
             // This creates an outlives constraint
-            let b: &'r1 mut u8 = &mut 'r0 *a;
+            let b: &'r1 mut u8 = &'r0 mut *a;
             if true {
                 return b;
             } else {
@@ -3214,7 +3214,7 @@ const OUTLIVE_BEFORE_RETURN_DOES_NOT_AFFECT_MERGED_PATHS: &str = "
 
             // If the outlives constraint propagated here,
             // we would get an error.
-            let c: &'r3 mut u8 = &mut 'r2 *a;
+            let c: &'r3 mut u8 = &'r2 mut *a;
             return c;
         }
     }
@@ -3279,9 +3279,9 @@ fn loan_before_return_does_not_affect_dead_code_after() {
     FormalityTest::new(crates![crate Foo {
         fn reborrow<'a>(a: &'a mut u8) -> &'a mut u8 {
             exists<'r0, 'r1, 'r2, 'r3> {
-                let b: &'r1 mut u8 = &mut 'r0 *a;
+                let b: &'r1 mut u8 = &'r0 mut *a;
                 return b;
-                let c: &'r3 mut u8 = &mut 'r2 *a;
+                let c: &'r3 mut u8 = &'r2 mut *a;
                 return c;
             }
         }
@@ -3297,10 +3297,10 @@ fn if_else_paths_independent() {
         fn reborrow<'a>(a: &'a mut u8) -> &'a mut u8 {
             exists<'r0, 'r1, 'r2, 'r3> {
                 if true {
-                    let b: &'r1 mut u8 = &mut 'r0 *a;
+                    let b: &'r1 mut u8 = &'r0 mut *a;
                     return b;
                 } else {
-                    let c: &'r3 mut u8 = &mut 'r2 *a;
+                    let c: &'r3 mut u8 = &'r2 mut *a;
                     return c;
                 }
             }
@@ -3518,7 +3518,7 @@ fn local_shadowing_fn_name_stays_live() {
 fn reborrow_requires_ref_outlives_loan() {
     FormalityTest::new(crates![crate Foo {
         fn foo<'a, 'b>(p: &'a mut u32) -> u32 {
-            let q: &'b mut u32 = &mut 'b *p;
+            let q: &'b mut u32 = &'b mut *p;
             q;
             return 0_u32;
         }
@@ -3531,7 +3531,7 @@ fn reborrow_requires_ref_outlives_loan() {
 fn reborrow_ref_outlives_loan_ok() {
     FormalityTest::new(crates![crate Foo {
         fn foo<'a, 'b>(p: &'a mut u32) -> u32 where 'a: 'b {
-            let q: &'b mut u32 = &mut 'b *p;
+            let q: &'b mut u32 = &'b mut *p;
             q;
             return 0 _ u32;
         }
@@ -3544,8 +3544,8 @@ fn reborrow_ref_outlives_loan_ok() {
 #[ignore = "passes, but nested-reference types make proof search pathologically slow (~5 min)"]
 fn reborrow_nested_derefs_ok() {
     FormalityTest::new(crates![crate Foo {
-        fn foo<'a, 'b, 'c>(pp: &mut 'a &mut 'b u32) -> u32 where 'a: 'c, 'b: 'c, 'b: 'a {
-            let q: &mut 'c u32 = &mut 'c **pp;
+        fn foo<'a, 'b, 'c>(pp: &'a mut &'b mut u32) -> u32 where 'a: 'c, 'b: 'c, 'b: 'a {
+            let q: &'c mut u32 = &'c mut **pp;
             q;
             return 0_u32;
         }
@@ -3578,22 +3578,22 @@ const ISSUE_46589_TRIGGER_BUG: &str = "
     struct Foo { }
 
     fn get_self<'x>(x: &'x mut Foo) -> &'x mut Foo {
-        return &mut 'x *x;
+        return &'x mut *x;
     }
 
     fn new_self<'x>(x: &'x mut Foo) -> &'x mut Foo {
-        return &mut 'x *x;
+        return &'x mut *x;
     }
 
     fn trigger_bug<'s>(s: &'s mut Foo) -> u32 {
         exists<'r0, 'r1, 'r2, 'r3> {
-            let tmp: &'r0 mut Foo = &mut 'r0 *s;
-            let other: &'r1 mut &'r0 mut Foo = &mut 'r1 tmp;
-            let m: &'r2 mut Foo = get_self::<'r2>(&mut 'r2 *(*other));
+            let tmp: &'r0 mut Foo = &'r0 mut *s;
+            let other: &'r1 mut &'r0 mut Foo = &'r1 mut tmp;
+            let m: &'r2 mut Foo = get_self::<'r2>(&'r2 mut *(*other));
             if true {
                 *other = m;
             } else {
-                let n: &'r3 mut Foo = new_self::<'r3>(&mut 'r3 *(*other));
+                let n: &'r3 mut Foo = new_self::<'r3>(&'r3 mut *(*other));
                 *other = n;
             }
             other;
@@ -3602,7 +3602,7 @@ const ISSUE_46589_TRIGGER_BUG: &str = "
     }
 ";
 
-/// Blocked: a `let` whose annotated type is a nested reference (`&mut 'r1
+/// Blocked: a `let` whose annotated type is a nested reference (`&'r1 mut
 /// &'r0 mut Foo`) currently fails in every mode while proving
 /// `@ wf(&mut ?lt_1 &mut ?lt_0 Foo)`: the proof has two incomparable
 /// pending-outlives solutions and `proven_set` reports "no relationship
@@ -3656,12 +3656,12 @@ const ISSUE_63908_REMOVE_LAST_NODE_RECURSIVE: &str = "
     struct List { value: u32 }
 
     fn next_of<'x>(l: &'x mut List) -> &'x mut List {
-        return &mut 'x *l;
+        return &'x mut *l;
     }
 
     fn remove_last_node_recursive<'a>(node: &'a mut List) -> u32 {
         exists<'r0> {
-            let next: &'r0 mut List = next_of::<'r0>(&mut 'r0 *node);
+            let next: &'r0 mut List = next_of::<'r0>(&'r0 mut *node);
             if true {
                 remove_last_node_recursive::<'r0>(next);
             } else {
@@ -3726,9 +3726,9 @@ const ISSUE_63908_REMOVE_LAST_NODE_ITERATIVE: &str = "
 
     fn remove_last_node_iterative<'a>(node: &'a mut List) -> u32 {
         exists<'r0, 'r1> {
-            let cursor: &'r0 mut List = &mut 'r0 *node;
+            let cursor: &'r0 mut List = &'r0 mut *node;
             'l: loop {
-                let next: &'r1 mut List = &mut 'r1 *cursor;
+                let next: &'r1 mut List = &'r1 mut *cursor;
                 if true {
                     cursor = next;
                 } else {
@@ -3820,17 +3820,17 @@ const ISSUE_57165_NO_CONTROL_FLOW: &str = "
     struct X { value: u32 }
 
     fn next_of<'x>(x: &'x mut X) -> &'x mut X {
-        return &mut 'x *x;
+        return &'x mut *x;
     }
 
     fn no_control_flow() -> u32 {
         exists<'r0, 'r1, 'r2, 'r3> {
             let b: X = X { value: 0_u32 };
-            let p: &'r0 mut X = &mut 'r1 b;
+            let p: &'r0 mut X = &'r1 mut b;
             'l: loop {
-                let now: &'r2 mut X = &mut 'r2 *p;
+                let now: &'r2 mut X = &'r2 mut *p;
                 if true {
-                    let next: &'r3 mut X = next_of::<'r3>(&mut 'r3 *now);
+                    let next: &'r3 mut X = next_of::<'r3>(&'r3 mut *now);
                     p = next;
                 } else {
                     break 'l;
@@ -3886,18 +3886,18 @@ const ISSUE_57165_CONDITIONAL: &str = "
     struct X { value: u32 }
 
     fn next_of<'x>(x: &'x mut X) -> &'x mut X {
-        return &mut 'x *x;
+        return &'x mut *x;
     }
 
     fn conditional() -> u32 {
         exists<'r0, 'r1, 'r2, 'r3> {
             let b: X = X { value: 0_u32 };
-            let p: &'r0 mut X = &mut 'r1 b;
+            let p: &'r0 mut X = &'r1 mut b;
             'l: loop {
-                let now: &'r2 mut X = &mut 'r2 *p;
+                let now: &'r2 mut X = &'r2 mut *p;
                 if true {
                     if true {
-                        let next: &'r3 mut X = next_of::<'r3>(&mut 'r3 *now);
+                        let next: &'r3 mut X = next_of::<'r3>(&'r3 mut *now);
                         p = next;
                     } else {
                     }
@@ -4031,18 +4031,18 @@ const ISSUE_57165_CONDITIONAL_WITH_INDIRECTION: &str = "
     struct X { value: u32 }
 
     fn next_of<'x>(x: &'x mut X) -> &'x mut X {
-        return &mut 'x *x;
+        return &'x mut *x;
     }
 
     fn conditional_with_indirection() -> u32 {
         exists<'r0, 'r1, 'r2, 'r3> {
             let b: X = X { value: 0_u32 };
-            let p: &'r0 mut X = &mut 'r1 b;
+            let p: &'r0 mut X = &'r1 mut b;
             'l: loop {
-                let now: &'r2 mut X = &mut 'r2 *p;
+                let now: &'r2 mut X = &'r2 mut *p;
                 if true {
                     if true {
-                        let next: &'r3 mut X = next_of::<'r3>(&mut 'r3 *p);
+                        let next: &'r3 mut X = next_of::<'r3>(&'r3 mut *p);
                         p = next;
                     } else {
                     }
@@ -4117,9 +4117,9 @@ const ISSUE_46859_TO_REFS: &str = "
         exists<'r0, 'r1> {
             let result: &'a mut u32;
             'l: loop {
-                result = &mut 'r0 (*list).value;
+                result = &'r0 mut (*list).value;
                 if true {
-                    let n: &'r1 mut List = next_from_field::<'r1>(&mut 'r1 (*list).next);
+                    let n: &'r1 mut List = next_from_field::<'r1>(&'r1 mut (*list).next);
                     list = n;
                 } else {
                     return result;
@@ -4170,9 +4170,9 @@ const ISSUE_46859_TO_REFS2: &str = "
         exists<'r0, 'r1> {
             let result: &'a mut u32;
             'l: loop {
-                result = &mut 'r0 (*list).value;
+                result = &'r0 mut (*list).value;
                 if true {
-                    let n: &'r1 mut List = next_from_field::<'r1>(&mut 'r1 (*list).next);
+                    let n: &'r1 mut List = next_from_field::<'r1>(&'r1 mut (*list).next);
                     list = n;
                 } else {
                     break 'l;
@@ -4210,7 +4210,7 @@ fn issue_46859_to_refs2() {
 /// Port of `tests/ui/nll/polonius/iterating-updating-mutref.rs`
 /// (`to_refs3`). Variant of `to_refs`: the cursor is a *local*
 /// initialized with a reborrow at the universal lifetime
-/// (`&mut 'a *list`) instead of the parameter itself. Check-pass on all
+/// (`&'a mut *list`) instead of the parameter itself. Check-pass on all
 /// three rustc revisions:
 ///
 /// ```rust,ignore
@@ -4235,11 +4235,11 @@ const ISSUE_46859_TO_REFS3: &str = "
     fn to_refs3<'a>(list: &'a mut List) -> &'a mut u32 {
         exists<'r0, 'r1> {
             let result: &'a mut u32;
-            let cursor: &'a mut List = &mut 'a *list;
+            let cursor: &'a mut List = &'a mut *list;
             'l: loop {
-                result = &mut 'r0 (*cursor).value;
+                result = &'r0 mut (*cursor).value;
                 if true {
-                    let n: &'r1 mut List = next_from_field::<'r1>(&mut 'r1 (*cursor).next);
+                    let n: &'r1 mut List = next_from_field::<'r1>(&'r1 mut (*cursor).next);
                     cursor = n;
                 } else {
                     return result;
@@ -4297,7 +4297,7 @@ const ISSUE_46859_DECODER_NEXT: &str = "
     fn next<'a>(d: &'a mut Decoder) -> &'a u32 {
         exists<'r0, 'r1> {
             'l: loop {
-                let buf: &'r0 u32 = fill_buf::<'r0>(&mut 'r0 (*d).buf_read);
+                let buf: &'r0 u32 = fill_buf::<'r0>(&'r0 mut (*d).buf_read);
                 let s: &'r1 u32 = decode::<'r1>(buf);
                 if true {
                     return s;
@@ -4434,9 +4434,9 @@ const ISSUE_92985_FILTER_NEXT: &str = "
     fn next<'s>(f: &'s mut Filter) -> &'s mut u32 {
         exists<'r0, 'r1, 'r2> {
             'l: loop {
-                let item: &'r0 mut u32 = iter_next::<'r0>(&mut 'r0 (*f).iter);
+                let item: &'r0 mut u32 = iter_next::<'r0>(&'r0 mut (*f).iter);
                 if true {
-                    let keep: bool = call_predicate::<'r1, 'r2>(&mut 'r1 (*f).predicate, &'r2 *item);
+                    let keep: bool = call_predicate::<'r1, 'r2>(&'r1 mut (*f).predicate, &'r2 *item);
                     if keep {
                         return item;
                     } else {
@@ -4753,12 +4753,12 @@ const ISSUE_70044_LOCATION_INSENSITIVE_CONSTRAINTS: &str = "
     fn foo() -> u32 {
         exists<'r0, 'r1, 'r2, 'r3, 'r4> {
             let zero_v: u32 = 0_u32;
-            let zero: &'r0 mut u32 = &mut 'r1 zero_v;
+            let zero: &'r0 mut u32 = &'r1 mut zero_v;
             let one: u32 = 1_u32;
             {
-                let r: &'r2 mut &'r0 mut u32 = &mut 'r2 zero;
-                let y: &'r3 mut u32 = &mut 'r3 one;
-                r = &mut 'r4 y;
+                let r: &'r2 mut &'r0 mut u32 = &'r2 mut zero;
+                let y: &'r3 mut u32 = &'r3 mut one;
+                r = &'r4 mut y;
             }
             println!(one);
             println!(*zero);
