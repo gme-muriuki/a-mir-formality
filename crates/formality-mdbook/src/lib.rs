@@ -204,6 +204,61 @@ fn append_coverage_chapters(
     index_chapter.sub_items = subpages;
     book.push_item(index_chapter);
 
+    append_by_test_chapters(
+        &cov,
+        &judgments,
+        github_base,
+        root.parent(),
+        &args_dir,
+        next_top + 1,
+        book,
+    )?;
+
+    Ok(())
+}
+
+/// Append the by-test view: an index of every test that recorded coverage plus
+/// one page per test, nested under it the same way the judgment subpages are
+/// nested under the coverage index (see [`append_coverage_chapters`]). The pages
+/// cross-link with the per-cell detail pages, so a reader can move between "what
+/// covers this premise" and "what else does this test cover".
+fn append_by_test_chapters(
+    cov: &jsonl::Coverage,
+    judgments: &[Judgment],
+    github_base: Option<&str>,
+    source_root: Option<&Path>,
+    args_dir: &Path,
+    top: u32,
+    book: &mut Book,
+) -> anyhow::Result<()> {
+    let mut pages: Vec<BookItem> = Vec::new();
+    for (i, page) in report::render_test_pages(judgments, cov, github_base, source_root)
+        .into_iter()
+        .enumerate()
+    {
+        // Slugs are built from the test's file and line, so two tests can never
+        // collide and no collision warning is needed here.
+        report::write_args_json(args_dir, &page)?;
+        let mut chapter = Chapter::new(
+            &page.title,
+            page.content,
+            PathBuf::from(format!("{}.md", page.slug)),
+            vec!["Coverage by test".to_string()],
+        );
+        chapter.number = Some(SectionNumber::new(vec![top, (i + 1) as u32]));
+        pages.push(BookItem::Chapter(chapter));
+    }
+
+    let mut index = Chapter::new(
+        "Coverage by test",
+        report::render_by_test_index(cov, source_root),
+        PathBuf::from("coverage-by-test.md"),
+        vec![],
+    );
+    index.number = Some(SectionNumber::new(vec![top]));
+    index.sub_items = pages;
+    book.push_item(index);
+
     Ok(())
 }
 
