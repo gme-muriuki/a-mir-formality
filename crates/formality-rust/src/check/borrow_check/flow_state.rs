@@ -145,6 +145,7 @@ where
         let Union((a, b)) = term;
         let a: FlowState = a.upcast();
         let b: FlowState = b.upcast();
+        let diverged = a.diverged && b.diverged;
 
         // At join points, locals (for name resolution) must be identical on both sides.
         // Only drop_locals may differ (due to `let 'a: x = ...` in one branch).
@@ -164,6 +165,8 @@ where
             continues: Union((a.continues, b.continues)).upcast(),
             all_outlives: Union((a.all_outlives, b.all_outlives)).upcast(),
             scopes,
+            // A join point is unreachable only if both incoming edges are.
+            diverged,
         }
     }
 }
@@ -196,6 +199,9 @@ pub struct FlowState {
     pub continues: Set<LabeledFlowState>,
 
     pub all_outlives: Set<PendingOutlives>,
+
+    /// If true, this program point is unreachable (all paths returned, broke, or continued).
+    pub diverged: bool,
 }
 
 impl FlowState {
@@ -225,20 +231,15 @@ impl FlowState {
     pub fn with_loan(&self, loan: Loan) -> Self {
         Self {
             current: self.current.with_loan(loan),
-            breaks: self.breaks.clone(),
-            continues: self.continues.clone(),
-            scopes: self.scopes.clone(),
-            all_outlives: self.all_outlives.clone(),
+            ..self.clone()
         }
     }
 
     pub fn with_outlives(&self, outlives: &Set<PendingOutlives>) -> Self {
         Self {
             current: self.current.with_outlives(outlives),
-            breaks: self.breaks.clone(),
-            continues: self.continues.clone(),
-            scopes: self.scopes.clone(),
             all_outlives: Union((&self.all_outlives, outlives)).upcast(),
+            ..self.clone()
         }
     }
 
@@ -261,25 +262,30 @@ impl FlowState {
     pub fn diverges(&self) -> Self {
         Self {
             current: PointFlowState::default(),
+            diverged: true,
             ..self.clone()
         }
     }
 
     pub fn with_break(&self, label: &LabelId) -> Self {
         let mut this = self.clone();
-        this.breaks.insert(LabeledFlowState {
-            label: label.clone(),
-            state: this.current.clone(),
-        });
+        if !this.diverged {
+            this.breaks.insert(LabeledFlowState {
+                label: label.clone(),
+                state: this.current.clone(),
+            });
+        }
         this
     }
 
     pub fn with_continue(&self, label: &LabelId) -> Self {
         let mut this = self.clone();
-        this.continues.insert(LabeledFlowState {
-            label: label.clone(),
-            state: this.current.clone(),
-        });
+        if !this.diverged {
+            this.continues.insert(LabeledFlowState {
+                label: label.clone(),
+                state: this.current.clone(),
+            });
+        }
         this
     }
 
@@ -473,6 +479,7 @@ impl FlowState {
             breaks,
             continues,
             all_outlives,
+            diverged,
         } = self.clone();
 
         // Pop and destructure the top scope.
@@ -501,6 +508,8 @@ impl FlowState {
             .into_iter()
             .partition(|lfs| Some(&lfs.label) == scope_label.as_ref());
         let mut successor = current;
+        // A break targeting this scope is live control arriving after it.
+        let diverged = diverged && this_label.is_empty();
         for lfs in this_label {
             successor = Union((successor, lfs.state)).upcast();
         }
@@ -516,6 +525,7 @@ impl FlowState {
             breaks: other_labels,
             continues,
             all_outlives,
+            diverged,
         }
     }
 
@@ -530,6 +540,7 @@ impl FlowState {
             breaks,
             continues,
             all_outlives,
+            diverged,
         } = self.clone();
 
         let (this_label, other_labels): (Set<LabeledFlowState>, Set<LabeledFlowState>) =
@@ -545,6 +556,7 @@ impl FlowState {
             breaks,
             continues: other_labels,
             all_outlives,
+            diverged,
         }
     }
 
@@ -631,6 +643,8 @@ impl FlowState {
             breaks: self.breaks.clone(),
             continues: self.continues.clone(),
             all_outlives,
+            // The rerun starts from the entry state, so it inherits its reachability.
+            diverged: self.diverged,
         }
     }
 }
