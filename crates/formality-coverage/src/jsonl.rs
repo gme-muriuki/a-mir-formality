@@ -46,7 +46,7 @@ pub struct NoApplicableRuleLoc {
 /// What a single test covered: the rules it proved and the fallible premises it
 /// was observed to fail on. This is the inverse of the per-cell maps in
 /// [`Coverage`], for the by-test view of the report.
-#[derive(Clone, Default, Debug, Eq, PartialEq)]
+#[derive(Default, Debug)]
 pub struct TestCoverage {
     pub rules: BTreeSet<CoveredRule>,
     pub premises: BTreeSet<PremiseLoc>,

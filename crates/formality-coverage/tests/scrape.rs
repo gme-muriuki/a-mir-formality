@@ -1015,11 +1015,30 @@ fn by_test_inverts_the_per_cell_maps() {
 
 #[test]
 fn by_test_index_groups_tests_by_file() {
-    let md = report::render_by_test_index(&prove_thing_coverage(), None);
+    // A second file, so the per-file heading is actually emitted more than once.
+    let mut cov = prove_thing_coverage();
+    cov.positive
+        .get_mut(&CoveredRule {
+            judgment: "prove_thing".into(),
+            rule: "positive".into(),
+        })
+        .unwrap()
+        .insert(TestLoc {
+            file: "tests/other.rs".into(),
+            line: 7,
+        });
+
+    let md = report::render_by_test_index(&cov, None);
     expect![[r#"
         # Coverage by test
 
         The same data as the [coverage report](./coverage.md), organized by test rather than by judgment: each test lists the rules it proves and the premises it is observed to fail on.
+
+        ## `tests/other.rs`
+
+        | Test | Rules proved | Premises failed |
+        | --- | --- | --- |
+        | [line 7](./test__tests_other_rs__7.md) | 1 | 0 |
 
         ## `tests/prove_thing.rs`
 
@@ -1027,6 +1046,20 @@ fn by_test_index_groups_tests_by_file() {
         | --- | --- | --- |
         | [line 42](./test__tests_prove_thing_rs__42.md) | 1 | 0 |
         | [line 99](./test__tests_prove_thing_rs__99.md) | 0 | 1 |
+    "#]]
+    .assert_eq(&md);
+}
+
+#[test]
+fn by_test_index_says_so_when_nothing_was_recorded() {
+    // The branch a book built without running the tests takes.
+    let md = report::render_by_test_index(&Coverage::default(), None);
+    expect![[r#"
+        # Coverage by test
+
+        The same data as the [coverage report](./coverage.md), organized by test rather than by judgment: each test lists the rules it proves and the premises it is observed to fail on.
+
+        _No coverage recorded._
     "#]]
     .assert_eq(&md);
 }
@@ -1052,6 +1085,33 @@ fn test_pages_link_to_the_cells_they_cover() {
         # Test `tests/prove_thing.rs:42`
 
         <style>
+        .cov-rule{border:1px solid var(--quote-border,#d0d0d0);border-radius:6px;margin:1rem 0;overflow:hidden}
+        .cov-rule-head{padding:.4rem .8rem;background:var(--quote-bg,#f6f7f9);font-weight:600}
+        table.cov-code{width:100%;border-collapse:collapse;font-family:var(--mono-font,monospace);font-size:.85em;margin:0}
+        table.cov-code td{padding:.15rem .6rem;border:0}
+        table.cov-code th{padding:.15rem .6rem;border:0;border-bottom:1px solid var(--quote-border,#d0d0d0);color:#888;font-weight:600;font-size:.9em}
+        .cov-ln{text-align:right;color:#999;user-select:none;width:3em;white-space:nowrap}
+        .cov-num{text-align:right;width:3.5em;white-space:nowrap;font-weight:600}
+        .cov-num.pos a{color:#1a7f37}
+        .cov-num.neg a{color:#b35900}
+        .cov-none{color:#bbb}
+        .cov-na{color:#bbb;font-weight:400}
+        .cov-src-line{white-space:pre-wrap}
+        tr.cov-sep td{color:#999}
+        tr.cov-concl{background:rgba(127,127,127,.08)}
+        table.cov-code tr.cov-current td{background:rgba(31,120,255,.28)}
+        ul.cov-tree,ul.cov-tree ul{list-style:none;margin:0;padding-left:1.2em;font-family:var(--mono-font,monospace)}
+        ul.cov-tree{font-size:.85em}
+        ul.cov-tree ul{font-size:1em}
+        ul.cov-tree code{font-size:inherit}
+        ul.cov-tree summary{cursor:pointer}
+        .cov-tree-loc{color:#888}
+        .cov-tree-fail{color:#b35900}
+        .cov-tree-scroll{overflow-x:auto}
+        ul.cov-tree li,ul.cov-tree summary{white-space:nowrap}
+        </style>
+
+        <style>
         main table{width:100%;display:table}
         main table code{overflow-wrap:anywhere;white-space:normal}
         </style>
@@ -1075,6 +1135,33 @@ fn test_pages_link_to_the_cells_they_cover() {
     // premise's cell page.
     expect![[r#"
         # Test `tests/prove_thing.rs:99`
+
+        <style>
+        .cov-rule{border:1px solid var(--quote-border,#d0d0d0);border-radius:6px;margin:1rem 0;overflow:hidden}
+        .cov-rule-head{padding:.4rem .8rem;background:var(--quote-bg,#f6f7f9);font-weight:600}
+        table.cov-code{width:100%;border-collapse:collapse;font-family:var(--mono-font,monospace);font-size:.85em;margin:0}
+        table.cov-code td{padding:.15rem .6rem;border:0}
+        table.cov-code th{padding:.15rem .6rem;border:0;border-bottom:1px solid var(--quote-border,#d0d0d0);color:#888;font-weight:600;font-size:.9em}
+        .cov-ln{text-align:right;color:#999;user-select:none;width:3em;white-space:nowrap}
+        .cov-num{text-align:right;width:3.5em;white-space:nowrap;font-weight:600}
+        .cov-num.pos a{color:#1a7f37}
+        .cov-num.neg a{color:#b35900}
+        .cov-none{color:#bbb}
+        .cov-na{color:#bbb;font-weight:400}
+        .cov-src-line{white-space:pre-wrap}
+        tr.cov-sep td{color:#999}
+        tr.cov-concl{background:rgba(127,127,127,.08)}
+        table.cov-code tr.cov-current td{background:rgba(31,120,255,.28)}
+        ul.cov-tree,ul.cov-tree ul{list-style:none;margin:0;padding-left:1.2em;font-family:var(--mono-font,monospace)}
+        ul.cov-tree{font-size:.85em}
+        ul.cov-tree ul{font-size:1em}
+        ul.cov-tree code{font-size:inherit}
+        ul.cov-tree summary{cursor:pointer}
+        .cov-tree-loc{color:#888}
+        .cov-tree-fail{color:#b35900}
+        .cov-tree-scroll{overflow-x:auto}
+        ul.cov-tree li,ul.cov-tree summary{white-space:nowrap}
+        </style>
 
         <style>
         main table{width:100%;display:table}
@@ -1167,6 +1254,14 @@ fn test_pages_render_the_tests_own_proof_trees() {
 
     assert!(
         pages[0].content.contains("<summary>Proof tree</summary>"),
+        "{}",
+        pages[0].content
+    );
+    // The tree markup is styled by rules that live only in the shared
+    // stylesheet, so a test page carrying a tree has to carry that too or the
+    // tree renders as a plain bulleted list.
+    assert!(
+        pages[0].content.contains("ul.cov-tree,ul.cov-tree ul{"),
         "{}",
         pages[0].content
     );
@@ -1275,9 +1370,12 @@ fn test_pages_attribute_a_failure_blamed_inside_a_multi_line_premise() {
 
     let pages = report::render_test_pages(&judgments, &cov, Some(GITHUB_BASE), None);
     let content = &pages[1].content;
+    // The row sits under the premise that spans the blamed line, and names both
+    // lines so the reader can check the span match against the source.
     assert!(
         content.contains("[prove_thing](./prove_thing.md)")
-            && content.contains("for_all(i in 0..n) (prove_thing(i) => ())` (line 8)"),
+            && content
+                .contains("for_all(i in 0..n) (prove_thing(i) => ())` (line 8, blamed at line 9)"),
         "{content}"
     );
     // The judgment view keys pages by the premise's own first line, and no test

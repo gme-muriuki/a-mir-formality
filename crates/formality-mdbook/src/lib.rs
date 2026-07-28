@@ -211,6 +211,7 @@ fn append_coverage_chapters(
         root.parent(),
         &args_dir,
         next_top + 1,
+        &mut seen_slugs,
         book,
     )?;
 
@@ -229,6 +230,7 @@ fn append_by_test_chapters(
     source_root: Option<&Path>,
     args_dir: &Path,
     top: u32,
+    seen_slugs: &mut HashSet<String>,
     book: &mut Book,
 ) -> anyhow::Result<()> {
     let mut pages: Vec<BookItem> = Vec::new();
@@ -236,8 +238,16 @@ fn append_by_test_chapters(
         .into_iter()
         .enumerate()
     {
-        // Slugs are built from the test's file and line, so two tests can never
-        // collide and no collision warning is needed here.
+        // A test page's slug runs its file path through `report::slug`, which
+        // collapses `/`, `-` and `.` alike into `_`, so two test files whose
+        // paths differ only in those characters collide at the same line; warn,
+        // mirroring the pages above.
+        if !seen_slugs.insert(page.slug.clone()) {
+            eprintln!(
+                "warning: slug collision for coverage test page `{}`, it will overwrite a sibling",
+                page.slug,
+            );
+        }
         report::write_args_json(args_dir, &page)?;
         let mut chapter = Chapter::new(
             &page.title,

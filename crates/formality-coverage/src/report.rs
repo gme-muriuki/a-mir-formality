@@ -558,7 +558,9 @@ pub fn render_by_test_index(cov: &Coverage, source_root: Option<&Path>) -> Strin
     );
     let by_test = cov.by_test();
     if by_test.is_empty() {
-        s.push_str("_No coverage recorded._\n");
+        // Blank line first, or this joins the paragraph above into one run of
+        // text. This is the branch a book built without running the tests takes.
+        s.push_str("\n_No coverage recorded._\n");
         return s;
     }
     let mut current_file = "";
@@ -609,10 +611,18 @@ fn render_test_page(
 ) -> DetailPage {
     let slug = test_page_slug(loc);
     let label = format!("{}:{}", loc.file, loc.line);
-    let name = test_fn_name(source_root, loc);
+    // The heading's function name and the source block below come from the same
+    // block, so read it once.
+    let src = source_root.and_then(|root| extract_test_source(root, &loc.file, loc.line));
+    let name = src.as_deref().and_then(test_fn_name);
     let heading = name.clone().unwrap_or_else(|| label.clone());
 
-    let mut content = format!("# Test `{heading}`\n\n{BY_TEST_STYLE}\n");
+    // [`STYLE`] as well as [`BY_TEST_STYLE`]: the proof trees below are rendered
+    // by the same helpers the cell pages use, and their `cov-tree` rules live
+    // only in `STYLE`. Emitting it whole (rather than the tree rules alone)
+    // keeps this page in step if those rules ever change; the chart rules it
+    // also carries are inert on a page with no chart.
+    let mut content = format!("# Test `{heading}`\n\n{STYLE}\n{BY_TEST_STYLE}\n");
     match github_base {
         Some(base) => content.push_str(&format!(
             "**Source location:** [{label}]({base}/{file}#L{line})\n\n",
@@ -621,12 +631,10 @@ fn render_test_page(
         )),
         None => content.push_str(&format!("**Source location:** {label}\n\n")),
     }
-    if let Some(root) = source_root {
-        if let Some(src) = extract_test_source(root, &loc.file, loc.line) {
-            content.push_str("```rust,ignore\n");
-            content.push_str(&src);
-            content.push_str("\n```\n\n");
-        }
+    if let Some(src) = &src {
+        content.push_str("```rust,ignore\n");
+        content.push_str(src);
+        content.push_str("\n```\n\n");
     }
 
     content.push_str(&format!("## Rules proved ({})\n\n", tc.rules.len()));
@@ -701,12 +709,20 @@ fn render_test_page(
                             slug = neg_detail_slug(&j.name, &r.name, p.line),
                         )
                     };
+                    // Name the blamed line whenever it is not the premise's own
+                    // first line, so a reader can see where the span match in
+                    // `resolve_premise` put this row and check it against the
+                    // source.
+                    let at = if ploc.line == p.line {
+                        format!("line {}", p.line)
+                    } else {
+                        format!("line {}, blamed at line {}", p.line, ploc.line)
+                    };
                     content.push_str(&format!(
-                        "| {judgment} | {rule} | `{premise}` (line {line}) | {all_tests} |\n",
+                        "| {judgment} | {rule} | `{premise}` ({at}) | {all_tests} |\n",
                         judgment = judgment_link(j),
                         rule = rule_link(j, r),
                         premise = premise_cell(&p.raw_text),
-                        line = p.line,
                     ));
                 }
                 // A blamed location inside no scraped premise at all: the
@@ -811,11 +827,11 @@ fn premise_spans_line(p: &Premise, line: u32) -> bool {
     (p.line..p.line + height).contains(&line)
 }
 
-/// The name of the test function enclosing `loc`, when the source is readable.
-/// Taken from the same block [`extract_test_source`] renders, so the two always
-/// agree on which function a recorded location belongs to.
-fn test_fn_name(source_root: Option<&Path>, loc: &TestLoc) -> Option<String> {
-    let src = extract_test_source(source_root?, &loc.file, loc.line)?;
+/// The name of the test function whose source is `src`, as [`extract_test_source`]
+/// returns it. Taking the block rather than the location keeps the name and the
+/// rendered source in agreement, and lets a caller that needs both read the file
+/// once.
+fn test_fn_name(src: &str) -> Option<String> {
     // The block is dedented and starts with the test's attributes, so the first
     // non-attribute line carrying `fn ` is the function header.
     let header = src
@@ -833,7 +849,8 @@ fn test_fn_name(source_root: Option<&Path>, loc: &TestLoc) -> Option<String> {
 /// How a test is labelled in the by-test index: its function name when we can
 /// read the source, and always its line, which is what makes the row unique.
 fn test_label(source_root: Option<&Path>, loc: &TestLoc) -> String {
-    match test_fn_name(source_root, loc) {
+    let src = source_root.and_then(|root| extract_test_source(root, &loc.file, loc.line));
+    match src.as_deref().and_then(test_fn_name) {
         Some(name) => format!("{name} (line {})", loc.line),
         None => format!("line {}", loc.line),
     }
@@ -1537,6 +1554,12 @@ pub fn write_all(
         render_by_test_index(cov, source_root),
     )?;
     for page in render_test_pages(judgments, cov, github_base, source_root) {
+        if !seen_slugs.insert(page.slug.clone()) {
+            eprintln!(
+                "warning: slug collision for coverage test page `{}`, it will overwrite a sibling",
+                page.slug,
+            );
+        }
         write_args_json(&out_dir.join(ARGS_SUBDIR), &page)?;
         std::fs::write(out_dir.join(format!("{}.md", page.slug)), page.content)?;
     }
