@@ -204,6 +204,71 @@ fn append_coverage_chapters(
     index_chapter.sub_items = subpages;
     book.push_item(index_chapter);
 
+    append_by_test_chapters(
+        &cov,
+        &judgments,
+        github_base,
+        root.parent(),
+        &args_dir,
+        next_top + 1,
+        &mut seen_slugs,
+        book,
+    )?;
+
+    Ok(())
+}
+
+/// Append the by-test view: an index of every test that recorded coverage plus
+/// one page per test, nested under it the same way the judgment subpages are
+/// nested under the coverage index (see [`append_coverage_chapters`]). The pages
+/// cross-link with the per-cell detail pages, so a reader can move between "what
+/// covers this premise" and "what else does this test cover".
+fn append_by_test_chapters(
+    cov: &jsonl::Coverage,
+    judgments: &[Judgment],
+    github_base: Option<&str>,
+    source_root: Option<&Path>,
+    args_dir: &Path,
+    top: u32,
+    seen_slugs: &mut HashSet<String>,
+    book: &mut Book,
+) -> anyhow::Result<()> {
+    let mut pages: Vec<BookItem> = Vec::new();
+    for (i, page) in report::render_test_pages(judgments, cov, github_base, source_root)
+        .into_iter()
+        .enumerate()
+    {
+        // A test page's slug runs its file path through `report::slug`, which
+        // collapses `/`, `-` and `.` alike into `_`, so two test files whose
+        // paths differ only in those characters collide at the same line; warn,
+        // mirroring the pages above.
+        if !seen_slugs.insert(page.slug.clone()) {
+            eprintln!(
+                "warning: slug collision for coverage test page `{}`, it will overwrite a sibling",
+                page.slug,
+            );
+        }
+        report::write_args_json(args_dir, &page)?;
+        let mut chapter = Chapter::new(
+            &page.title,
+            page.content,
+            PathBuf::from(format!("{}.md", page.slug)),
+            vec!["Coverage by test".to_string()],
+        );
+        chapter.number = Some(SectionNumber::new(vec![top, (i + 1) as u32]));
+        pages.push(BookItem::Chapter(chapter));
+    }
+
+    let mut index = Chapter::new(
+        "Coverage by test",
+        report::render_by_test_index(cov, source_root),
+        PathBuf::from("coverage-by-test.md"),
+        vec![],
+    );
+    index.number = Some(SectionNumber::new(vec![top]));
+    index.sub_items = pages;
+    book.push_item(index);
+
     Ok(())
 }
 

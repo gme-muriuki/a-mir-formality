@@ -10,8 +10,14 @@
 //! a rule's conclusion is positive coverage; the number on a premise is negative
 //! coverage. Both link to a per-cell detail page ([`render_detail_pages_for`])
 //! that lists each individual test with its source location and source.
+//!
+//! The same data is also rendered the other way round: [`render_by_test_index`]
+//! and [`render_test_pages`] give a view organized by *test*, where each test
+//! shows the rules it proves and the premises it fails on. The two views
+//! cross-link, so a reader can go from a premise to the tests that exercise it
+//! and from a test back to everything else that exercises the same premise.
 
-use crate::jsonl::{paths_overlap, Coverage, TestLoc};
+use crate::jsonl::{paths_overlap, Coverage, PremiseLoc, TestCoverage, TestLoc};
 use crate::scrape::{Judgment, Premise, Rule};
 use anyhow::{Context, Result};
 use formality_core::judgment::coverage::{FailedRuleNode, FailedTreeNode, ProofTreeNode};
@@ -529,6 +535,327 @@ pub fn render_detail_pages_for(
     pages
 }
 
+/// Stylesheet for the by-test pages' tables. Their cells hold source text with
+/// long unbroken tokens (paths, judgment calls), which the default table layout
+/// cannot shrink, so the last column runs off the page; allowing a break
+/// anywhere inside those cells keeps every column on screen. Scoped to `main`
+/// so it beats mdbook's bare `table` rules, and emitted with no blank lines for
+/// the reason given on [`STYLE`].
+const BY_TEST_STYLE: &str = "<style>\n\
+main table{width:100%;display:table}\n\
+main table code{overflow-wrap:anywhere;white-space:normal}\n\
+</style>\n";
+
+/// Render the index of the by-test view: every test that recorded coverage,
+/// grouped by source file, linking to its own page (see [`render_test_pages`]).
+pub fn render_by_test_index(cov: &Coverage, source_root: Option<&Path>) -> String {
+    let mut s = String::new();
+    s.push_str("# Coverage by test\n\n");
+    s.push_str(
+        "The same data as the [coverage report](./coverage.md), organized by test rather than \
+         by judgment: each test lists the rules it proves and the premises it is observed to \
+         fail on.\n",
+    );
+    let by_test = cov.by_test();
+    if by_test.is_empty() {
+        // Blank line first, or this joins the paragraph above into one run of
+        // text. This is the branch a book built without running the tests takes.
+        s.push_str("\n_No coverage recorded._\n");
+        return s;
+    }
+    let mut current_file = "";
+    for (loc, tc) in &by_test {
+        if loc.file != current_file {
+            current_file = &loc.file;
+            s.push_str(&format!("\n## `{current_file}`\n\n"));
+            s.push_str("| Test | Rules proved | Premises failed |\n| --- | --- | --- |\n");
+        }
+        s.push_str(&format!(
+            "| [{label}](./{slug}.md) | {rules} | {premises} |\n",
+            label = test_label(source_root, loc),
+            slug = test_page_slug(loc),
+            rules = tc.rules.len(),
+            premises = tc.premises.len(),
+        ));
+    }
+    s
+}
+
+/// Build one page per test: the test's source, the rules it proves, the premises
+/// it fails on, and its proof tree(s). Every rule and premise row links to that
+/// cell's detail page in the judgment-organized view, which is where the reader
+/// finds the *other* tests covering the same cell.
+///
+/// Unlike the per-cell detail pages, which cap how many trees they inline (see
+/// [`MAX_TREES_PER_CELL`]), a test page carries exactly one test's trees, so
+/// every recorded tree is reachable from here.
+pub fn render_test_pages(
+    judgments: &[Judgment],
+    cov: &Coverage,
+    github_base: Option<&str>,
+    source_root: Option<&Path>,
+) -> Vec<DetailPage> {
+    cov.by_test()
+        .iter()
+        .map(|(loc, tc)| render_test_page(judgments, cov, loc, tc, github_base, source_root))
+        .collect()
+}
+
+fn render_test_page(
+    judgments: &[Judgment],
+    cov: &Coverage,
+    loc: &TestLoc,
+    tc: &TestCoverage,
+    github_base: Option<&str>,
+    source_root: Option<&Path>,
+) -> DetailPage {
+    let slug = test_page_slug(loc);
+    let label = format!("{}:{}", loc.file, loc.line);
+    // The heading's function name and the source block below come from the same
+    // block, so read it once.
+    let src = source_root.and_then(|root| extract_test_source(root, &loc.file, loc.line));
+    let name = src.as_deref().and_then(test_fn_name);
+    let heading = name.clone().unwrap_or_else(|| label.clone());
+
+    // [`STYLE`] as well as [`BY_TEST_STYLE`]: the proof trees below are rendered
+    // by the same helpers the cell pages use, and their `cov-tree` rules live
+    // only in `STYLE`. Emitting it whole (rather than the tree rules alone)
+    // keeps this page in step if those rules ever change; the chart rules it
+    // also carries are inert on a page with no chart.
+    let mut content = format!("# Test `{heading}`\n\n{STYLE}\n{BY_TEST_STYLE}\n");
+    match github_base {
+        Some(base) => content.push_str(&format!(
+            "**Source location:** [{label}]({base}/{file}#L{line})\n\n",
+            file = loc.file,
+            line = loc.line,
+        )),
+        None => content.push_str(&format!("**Source location:** {label}\n\n")),
+    }
+    if let Some(src) = &src {
+        content.push_str("```rust,ignore\n");
+        content.push_str(src);
+        content.push_str("\n```\n\n");
+    }
+
+    content.push_str(&format!("## Rules proved ({})\n\n", tc.rules.len()));
+    if tc.rules.is_empty() {
+        content.push_str("_This test records no positive coverage._\n\n");
+    } else {
+        content.push_str("| Judgment | Rule | All tests of this rule |\n| --- | --- | --- |\n");
+        for cr in &tc.rules {
+            let scraped = judgments
+                .iter()
+                .find(|j| j.name == cr.judgment)
+                .and_then(|j| j.rules.iter().find(|r| r.name == cr.rule).map(|r| (j, r)));
+            match scraped {
+                Some((j, r)) => content.push_str(&format!(
+                    "| {judgment} | {rule} | {tests} |\n",
+                    judgment = judgment_link(j),
+                    rule = rule_link(j, r),
+                    tests = positive_cell(cov, &cr.judgment, &cr.rule),
+                )),
+                // A rule the tests exercised but the scraper does not find, so
+                // it has no page to link to. Both hand-rolled `ProofTree`s
+                // (which are not `judgment_fn!` rules at all) and judgments the
+                // scraper fails to parse land here, so the count is still worth
+                // showing.
+                None => {
+                    let n = cov
+                        .positive_tests(&cr.judgment, &cr.rule)
+                        .map_or(0, |t| t.len());
+                    content.push_str(&format!(
+                        "| `{judgment}` | `{rule}` | {n} {tests} (not in the report) |\n",
+                        judgment = cr.judgment,
+                        rule = cr.rule,
+                        tests = plural(n),
+                    ));
+                }
+            }
+        }
+        content.push('\n');
+    }
+
+    content.push_str(&format!("## Premises failed ({})\n\n", tc.premises.len()));
+    if tc.premises.is_empty() {
+        content.push_str("_This test records no negative coverage._\n\n");
+    } else {
+        content.push_str(
+            "The last column links to the premise's page when the judgment view counts this \
+             failure against that premise. It does not when the premise is read as infallible, \
+             or when the failure was blamed inside a multi-line premise that carries no record \
+             on its own first line.\n\n",
+        );
+        content.push_str(
+            "| Judgment | Rule | Premise | All tests of this premise |\n| --- | --- | --- | --- |\n",
+        );
+        for ploc in &tc.premises {
+            match resolve_premise(judgments, ploc) {
+                Some((j, r, p)) => {
+                    // The judgment view writes a premise's page under exactly
+                    // these conditions (see `render_detail_pages_for`), so they
+                    // are also what decides whether there is a page to link to.
+                    let tests = if p.fallible {
+                        cov.negative_premise_tests(&j.file, p.line)
+                    } else {
+                        Default::default()
+                    };
+                    let all_tests = if tests.is_empty() {
+                        "not counted by the judgment view".to_string()
+                    } else {
+                        format!(
+                            "[{n} {tests}](./{slug}.md)",
+                            n = tests.len(),
+                            tests = plural(tests.len()),
+                            slug = neg_detail_slug(&j.name, &r.name, p.line),
+                        )
+                    };
+                    // Name the blamed line whenever it is not the premise's own
+                    // first line, so a reader can see where the span match in
+                    // `resolve_premise` put this row and check it against the
+                    // source.
+                    let at = if ploc.line == p.line {
+                        format!("line {}", p.line)
+                    } else {
+                        format!("line {}, blamed at line {}", p.line, ploc.line)
+                    };
+                    content.push_str(&format!(
+                        "| {judgment} | {rule} | `{premise}` ({at}) | {all_tests} |\n",
+                        judgment = judgment_link(j),
+                        rule = rule_link(j, r),
+                        premise = premise_cell(&p.raw_text),
+                    ));
+                }
+                // A blamed location inside no scraped premise at all: the
+                // judgment it names is one the scraper does not find.
+                None => content.push_str(&format!(
+                    "| - | - | `{}:{}` | not in the report |\n",
+                    ploc.file, ploc.line
+                )),
+            }
+        }
+        content.push('\n');
+    }
+
+    let mut sink = ArgSink::default();
+    let trees = format!(
+        "{}{}",
+        proof_tree_details(
+            cov.positive_trees_for(loc),
+            github_base,
+            source_root,
+            &mut sink,
+        ),
+        failed_tree_details(
+            cov.negative_trees_for(loc),
+            github_base,
+            source_root,
+            &mut sink,
+        ),
+    );
+    if !trees.is_empty() {
+        content.push_str("## Proof trees\n\n");
+        content.push_str(&trees);
+    }
+    if !sink.is_empty() {
+        content.push_str(&args_script(&slug));
+    }
+
+    DetailPage {
+        title: match name {
+            Some(name) => format!("{name} ({}:{})", short_file(&loc.file), loc.line),
+            None => format!("{}:{}", short_file(&loc.file), loc.line),
+        },
+        content,
+        args_json: sink.to_json(),
+        slug,
+    }
+}
+
+/// Filename stem for a test's page in the by-test view. Must match the links
+/// emitted by [`render_by_test_index`] and by the back-link in [`test_list`].
+pub fn test_page_slug(loc: &TestLoc) -> String {
+    format!("test__{}__{}", slug(&loc.file), loc.line)
+}
+
+/// Markdown link to a judgment's subpage in the judgment-organized view.
+fn judgment_link(j: &Judgment) -> String {
+    format!("[{name}](./{slug}.md)", name = j.name, slug = slug(&j.name))
+}
+
+/// Markdown link to one rule's chart on its judgment's subpage.
+fn rule_link(j: &Judgment, r: &Rule) -> String {
+    format!(
+        "[{rule}](./{slug}.md#{anchor})",
+        rule = r.name,
+        slug = slug(&j.name),
+        anchor = anchor(&r.name),
+    )
+}
+
+/// Locate the scraped premise a recorded negative-coverage location refers to:
+/// the premise whose source lines contain `loc`, in a file whose path overlaps
+/// (the record's path and the scraped path have different roots).
+///
+/// Matching is by line *span*, not by start line as
+/// [`Coverage::negative_premise_tests`] does. The macro respans a failure onto
+/// the exact sub-premise that failed, while the scraper reads a `for_all` block
+/// as a single premise, so most records inside such a block name a line the
+/// judgment view can attribute to no premise at all. Spans put those rows under
+/// the premise they belong to; whether the judgment view *counts* them is a
+/// separate question the caller answers with `negative_premise_tests`.
+fn resolve_premise<'a>(
+    judgments: &'a [Judgment],
+    loc: &PremiseLoc,
+) -> Option<(&'a Judgment, &'a Rule, &'a Premise)> {
+    judgments.iter().find_map(|j| {
+        if !paths_overlap(&loc.file, &j.file) {
+            return None;
+        }
+        j.rules.iter().find_map(|r| {
+            r.premises
+                .iter()
+                .find(|p| premise_spans_line(p, loc.line))
+                .map(|p| (j, r, p))
+        })
+    })
+}
+
+/// Whether `line` falls within the source lines `p` occupies. `Premise::line` is
+/// its first line and `raw_text` holds its full (possibly multi-line) source.
+fn premise_spans_line(p: &Premise, line: u32) -> bool {
+    let height = p.raw_text.lines().count().max(1) as u32;
+    (p.line..p.line + height).contains(&line)
+}
+
+/// The name of the test function whose source is `src`, as [`extract_test_source`]
+/// returns it. Taking the block rather than the location keeps the name and the
+/// rendered source in agreement, and lets a caller that needs both read the file
+/// once.
+fn test_fn_name(src: &str) -> Option<String> {
+    // The block is dedented and starts with the test's attributes, so the first
+    // non-attribute line carrying `fn ` is the function header.
+    let header = src
+        .lines()
+        .find(|l| !l.starts_with("#[") && l.contains("fn "))?;
+    let name: String = header
+        .split("fn ")
+        .nth(1)?
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .collect();
+    (!name.is_empty()).then_some(name)
+}
+
+/// How a test is labelled in the by-test index: its function name when we can
+/// read the source, and always its line, which is what makes the row unique.
+fn test_label(source_root: Option<&Path>, loc: &TestLoc) -> String {
+    let src = source_root.and_then(|root| extract_test_source(root, &loc.file, loc.line));
+    match src.as_deref().and_then(test_fn_name) {
+        Some(name) => format!("{name} (line {})", loc.line),
+        None => format!("line {}", loc.line),
+    }
+}
+
 /// Which proof tree to render under each test in a detail page.
 enum TreeSection<'a> {
     /// Positive page: render each test's success proof tree (the rules it fired).
@@ -566,16 +893,22 @@ fn test_list<'a>(
     let mut s = String::new();
     for (i, loc) in tests.iter().enumerate() {
         let label = format!("{}:{}", loc.file, loc.line);
+        // Every location listed here comes from the coverage data, so the test's
+        // page in the by-test view always exists.
+        let back = format!(
+            " ([all coverage from this test](./{}.md))",
+            test_page_slug(loc),
+        );
         s.push_str("---\n\n");
         match github_base {
             Some(base) => s.push_str(&format!(
-                "**Source location:** [{label}]({base}/{file}#L{line})\n\n",
+                "**Source location:** [{label}]({base}/{file}#L{line}){back}\n\n",
                 label = label,
                 base = base,
                 file = loc.file,
                 line = loc.line,
             )),
-            None => s.push_str(&format!("**Source location:** {label}\n\n")),
+            None => s.push_str(&format!("**Source location:** {label}{back}\n\n")),
         }
         if let Some(root) = source_root {
             if let Some(src) = extract_test_source(root, &loc.file, loc.line) {
@@ -588,7 +921,8 @@ fn test_list<'a>(
             s.push_str(&tree_details(&trees, loc, github_base, source_root, sink));
         } else if i == MAX_TREES_PER_CELL {
             s.push_str(&format!(
-                "_Proof trees omitted for the remaining {} tests._\n\n",
+                "_Proof trees omitted for the remaining {} tests; each one is on its test's page \
+                 in [Coverage by test](./coverage-by-test.md)._\n\n",
                 tests.len() - MAX_TREES_PER_CELL,
             ));
         }
@@ -1141,6 +1475,22 @@ fn negative_index_cell(cov: &Coverage, judgment_file: &str, rule: &Rule) -> Stri
     format!("{covered}/{}", fallible.len())
 }
 
+/// Longest premise source shown in a by-test table cell. Premises run to many
+/// lines (a `for_all` block, an inline `match`), and a cell that wide pushes the
+/// rest of the table off the page; the full source is on the premise's own page.
+const MAX_PREMISE_CELL: usize = 48;
+
+/// A premise's source for a by-test table cell: collapsed to one line as
+/// [`premise_label`] does, and truncated to [`MAX_PREMISE_CELL`].
+fn premise_cell(raw: &str) -> String {
+    let one_line = raw.split_whitespace().collect::<Vec<_>>().join(" ");
+    let truncated = match one_line.char_indices().nth(MAX_PREMISE_CELL) {
+        Some((end, _)) => format!("{}…", &one_line[..end]),
+        None => one_line,
+    };
+    premise_label(&truncated)
+}
+
 /// Collapse a premise's source text to a single line and escape `|` so it
 /// can sit in a markdown table cell.
 fn premise_label(raw: &str) -> String {
@@ -1196,6 +1546,22 @@ pub fn write_all(
             write_args_json(&out_dir.join(ARGS_SUBDIR), &page)?;
             std::fs::write(out_dir.join(format!("{}.md", page.slug)), page.content)?;
         }
+    }
+
+    // The same coverage organized by test, cross-linked with the pages above.
+    std::fs::write(
+        out_dir.join("coverage-by-test.md"),
+        render_by_test_index(cov, source_root),
+    )?;
+    for page in render_test_pages(judgments, cov, github_base, source_root) {
+        if !seen_slugs.insert(page.slug.clone()) {
+            eprintln!(
+                "warning: slug collision for coverage test page `{}`, it will overwrite a sibling",
+                page.slug,
+            );
+        }
+        write_args_json(&out_dir.join(ARGS_SUBDIR), &page)?;
+        std::fs::write(out_dir.join(format!("{}.md", page.slug)), page.content)?;
     }
     Ok(())
 }
