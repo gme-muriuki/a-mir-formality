@@ -2,7 +2,7 @@ use std::ops::Deref;
 
 use crate::grammar::{
     AssociatedTy, AssociatedTyValue, Fallible, ImplItem, NegTraitImpl, Trait, TraitImpl, TraitItem,
-    WhereBoundData,
+    WhereBound,
 };
 use crate::prove::Safety;
 
@@ -128,7 +128,7 @@ pub fn lower_assoc_ty(
     let mut bounds = Vec::new();
     for ensure in &term.ensures {
         match ensure {
-            WhereBoundData::IsImplemented(trait_id, parameters) => {
+            WhereBound::IsImplemented(trait_id, parameters) => {
                 bounds.push(syntax::TypeBound::Trait {
                     trait_name: trait_id.deref().clone(),
                     args: parameters
@@ -137,10 +137,10 @@ pub fn lower_assoc_ty(
                         .collect::<Result<Vec<_>, _>>()?,
                 });
             }
-            WhereBoundData::Outlives(_) => {
+            WhereBound::Outlives(_) => {
                 anyhow::bail!("lowering associated type outlives bounds is not implemented yet")
             }
-            WhereBoundData::ForAll(_) => {
+            WhereBound::ForAll(_) => {
                 anyhow::bail!("lowering associated type `for` bounds is not implemented yet")
             }
         }

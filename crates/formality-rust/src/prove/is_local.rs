@@ -1,6 +1,6 @@
 use crate::{
     grammar::{
-        AliasTy, Lt, Parameter, PredicateTy, RigidName, RigidTy, TraitRef, TyData, Variable, Wcs,
+        AliasTy, Lt, Parameter, PredicateTy, RigidName, RigidTy, TraitRef, Ty, Variable, Wcs,
     },
     prove::Constrained,
 };
@@ -104,7 +104,7 @@ judgment_fn! {
             // existential variables *could* be inferred to downstream types; depends on the substitution
             // we ultimately have.
             --- ("type variable")
-            (may_be_downstream_parameter(_decls, env, _assumptions, TyData::Variable(Variable::ExistentialVar(_)))
+            (may_be_downstream_parameter(_decls, env, _assumptions, Ty::Variable(Variable::ExistentialVar(_)))
                 => Constraints::none(env))
         )
 
@@ -143,7 +143,7 @@ judgment_fn! {
         (
             --- ("existential variable")
             (may_contain_downstream_type(_decls, _env, _assumptions,
-                TyData::Variable(Variable::ExistentialVar(_))) => ())
+                Ty::Variable(Variable::ExistentialVar(_))) => ())
         )
 
         // Rigid types: recurse into parameters
@@ -170,7 +170,7 @@ judgment_fn! {
             (may_contain_downstream_type(decls, env, assumptions, ty) => ())
             --- ("forall")
             (may_contain_downstream_type(decls, env, assumptions,
-                TyData::PredicateTy(PredicateTy::ForAll(binder))) => ())
+                Ty::PredicateTy(PredicateTy::ForAll(binder))) => ())
         )
     }
 }
@@ -266,7 +266,7 @@ judgment_fn! {
             // existential variables *could* be inferred to downstream types; depends on the substitution
             // we ultimately have.
             --- ("type variable")
-            (is_not_downstream(_decls, env, _assumptions, TyData::Variable(Variable::ExistentialVar(_)))
+            (is_not_downstream(_decls, env, _assumptions, Ty::Variable(Variable::ExistentialVar(_)))
                 => Constraints::none(env).ambiguous())
         )
     }
@@ -309,7 +309,7 @@ judgment_fn! {
         // existential variables might or might not be local, depending on how they are instantiated.
         (
             --- ("existential variable")
-            (is_local_parameter(_decls, env, _assumptions, TyData::Variable(Variable::ExistentialVar(_))) => Constraints::none(env).ambiguous())
+            (is_local_parameter(_decls, env, _assumptions, Ty::Variable(Variable::ExistentialVar(_))) => Constraints::none(env).ambiguous())
         )
     }
 }

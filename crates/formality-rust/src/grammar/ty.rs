@@ -23,9 +23,6 @@ pub enum Ty {
     Variable(Variable),
 }
 
-/// Temporary alias for migration -- allows `TyData::Variant` to still compile.
-pub type TyData = Ty;
-
 impl Ty {
     pub fn never() -> Self {
         RigidTy::new(RigidName::Never, ()).upcast()
@@ -320,9 +317,6 @@ pub enum Lt {
     #[variable(ParameterKind::Lt)]
     Variable(Variable),
 }
-
-/// Temporary alias for migration.
-pub type LtData = Lt;
 
 impl Lt {
     pub fn static_() -> Self {

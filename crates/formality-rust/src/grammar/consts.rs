@@ -23,9 +23,6 @@ pub enum Const {
     Variable(Variable),
 }
 
-/// Temporary alias for migration.
-pub type ConstData = Const;
-
 #[term]
 pub enum ScalarValue {
     #[grammar(u8($v0))]

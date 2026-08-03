@@ -1,7 +1,5 @@
 use crate::{
-    grammar::{
-        AliasTy, ExistentialVar, Parameter, Relation, RigidTy, TyData, Variable, Wc, WcData, Wcs,
-    },
+    grammar::{AliasTy, ExistentialVar, Parameter, Relation, RigidTy, Ty, Variable, Wc, Wcs},
     prove::Constrained,
 };
 use formality_core::{judgment_fn, Downcast};
@@ -48,7 +46,7 @@ judgment_fn! {
             (let c = c.pop_subst(&subst))
             (assert c.env().encloses(&ty))
             ----------------------------- ("normalize-via-impl")
-            (prove_normalize(decls, env, assumptions, TyData::AliasTy(a)) => Constrained(ty, c))
+            (prove_normalize(decls, env, assumptions, Ty::AliasTy(a)) => Constrained(ty, c))
         )
     }
 }
@@ -118,7 +116,7 @@ judgment_fn! {
             (let c = c.pop_subst(&subst))
             (assert c.env().encloses(&p))
             ----------------------------- ("forall")
-            (prove_normalize_via(decls, env, assumptions, WcData::ForAll(binder), goal) => Constrained(p, c))
+            (prove_normalize_via(decls, env, assumptions, Wc::ForAll(binder), goal) => Constrained(p, c))
         )
 
         (
@@ -126,7 +124,7 @@ judgment_fn! {
             (prove_after(decls, c, assumptions, wc_condition) => c)
             (let p = c.substitution().apply(p))
             ----------------------------- ("implies")
-            (prove_normalize_via(decls, env, assumptions, WcData::Implies(wc_condition, wc_consequence), goal) => Constrained(p, c))
+            (prove_normalize_via(decls, env, assumptions, Wc::Implies(wc_condition, wc_consequence), goal) => Constrained(p, c))
         )
     }
 }
@@ -155,7 +153,7 @@ judgment_fn! {
             (if a_name == b_name)!
             (zip(decls, env, assumptions, a_parameters.clone(), b_parameters.clone(), &prove_syntactically_eq) => c)
             ----------------------------- ("rigid")
-            (prove_syntactically_eq(decls, env, assumptions, TyData::RigidTy(a), TyData::RigidTy(b)) => c)
+            (prove_syntactically_eq(decls, env, assumptions, Ty::RigidTy(a), Ty::RigidTy(b)) => c)
         )
 
         (
@@ -164,7 +162,7 @@ judgment_fn! {
             (if a_name == b_name)!
             (zip(decls, env, assumptions, a_parameters.clone(), b_parameters.clone(), &prove_syntactically_eq) => c)
             ----------------------------- ("alias")
-            (prove_syntactically_eq(decls, env, assumptions, TyData::AliasTy(a), TyData::AliasTy(b)) => c)
+            (prove_syntactically_eq(decls, env, assumptions, Ty::AliasTy(a), Ty::AliasTy(b)) => c)
         )
 
         (

@@ -1,6 +1,6 @@
 use crate::grammar::{
-    AliasName, AliasTy, ConstData, Lt, LtData, Parameter, Parameters, Relation, RigidName, RigidTy,
-    Ty, UniversalVar, Wcs,
+    AliasName, AliasTy, Const, Lt, Parameter, Parameters, Relation, RigidName, RigidTy, Ty,
+    UniversalVar, Wcs,
 };
 use formality_core::{judgment_fn, Downcast, ProvenSet, Upcast};
 
@@ -68,12 +68,12 @@ judgment_fn! {
 
         (
             --- ("static lifetime")
-            (prove_wf(_decls, env, _assumptions, LtData::Static) => Constraints::none(env))
+            (prove_wf(_decls, env, _assumptions, Lt::Static) => Constraints::none(env))
         )
 
         (
             --- ("scalar constants are always wf")
-            (prove_wf(_decls, env, _assumptions, ConstData::Scalar(_)) => Constraints::none(env))
+            (prove_wf(_decls, env, _assumptions, Const::Scalar(_)) => Constraints::none(env))
         )
 
         (
