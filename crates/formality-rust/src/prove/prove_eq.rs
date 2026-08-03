@@ -1,5 +1,5 @@
 use crate::grammar::{
-    AliasTy, ExistentialVar, Parameter, Relation, RigidTy, Substitution, TyData, UniversalVar,
+    AliasTy, ExistentialVar, Parameter, Relation, RigidTy, Substitution, Ty, UniversalVar,
     Variable, Wcs,
 };
 use crate::prove::Constrained;
@@ -46,7 +46,7 @@ judgment_fn! {
             (if a_name == b_name)!
             (prove(decls, env, assumptions, Wcs::all_eq(a_parameters, b_parameters)) => c)
             ----------------------------- ("rigid")
-            (prove_eq(decls, env, assumptions, TyData::RigidTy(a), TyData::RigidTy(b)) => c)
+            (prove_eq(decls, env, assumptions, Ty::RigidTy(a), Ty::RigidTy(b)) => c)
         )
 
         (
@@ -55,7 +55,7 @@ judgment_fn! {
             (if a_name == b_name)!
             (prove(decls, env, assumptions, Wcs::all_eq(a_parameters, b_parameters)) => env_c)
             ----------------------------- ("alias")
-            (prove_eq(decls, env, assumptions, TyData::AliasTy(a), TyData::AliasTy(b)) => env_c)
+            (prove_eq(decls, env, assumptions, Ty::AliasTy(a), Ty::AliasTy(b)) => env_c)
         )
 
         (

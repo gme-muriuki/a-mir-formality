@@ -1,6 +1,6 @@
 use crate::{
     check::borrow_check::{env::TypeckEnv, flow_state::FlowState, nll::borrow_check},
-    grammar::{Const, ConstData, Ty, Wcs},
+    grammar::{Const, Ty, Wcs},
 };
 use formality_core::judgment_fn;
 
@@ -26,14 +26,14 @@ judgment_fn! {
 
         (
             --- ("rigid constant")
-            (prove_const_has_type(_decls, env, _assumptions, ConstData::Scalar(scalar)) => (scalar.ty(), Constraints::none(env)))
+            (prove_const_has_type(_decls, env, _assumptions, Const::Scalar(scalar)) => (scalar.ty(), Constraints::none(env)))
         )
 
 
         (
             (borrow_check(TypeckEnv::for_const(env, decls), assumptions, FlowState::default(), block) => ())
             --- ("block")
-            (prove_const_has_type(decls, env, assumptions, ConstData::Block(block)) => (Ty::unit(), Constraints::none(env)))
+            (prove_const_has_type(decls, env, assumptions, Const::Block(block)) => (Ty::unit(), Constraints::none(env)))
         )
     }
 }

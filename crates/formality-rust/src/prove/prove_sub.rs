@@ -1,4 +1,4 @@
-use crate::grammar::{Lt, Parameter, Relation, RigidTy, TyData, Wcs};
+use crate::grammar::{Lt, Parameter, Relation, RigidTy, Ty, Wcs};
 use crate::prove::Constrained;
 use formality_core::judgment_fn;
 
@@ -43,7 +43,7 @@ judgment_fn! {
             (if a_name == b_name)!
             (prove(decls, env, assumptions, Wcs::all_sub(a_parameters, b_parameters)) => c)
             ----------------------------- ("rigid")
-            (prove_sub(decls, env, assumptions, TyData::RigidTy(a), TyData::RigidTy(b)) => c)
+            (prove_sub(decls, env, assumptions, Ty::RigidTy(a), Ty::RigidTy(b)) => c)
         )
 
         (

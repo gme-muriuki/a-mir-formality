@@ -23,7 +23,7 @@ use crate::{
 ///
 /// ```rust,ignore
 /// #[term]
-/// pub enum TyData {
+/// pub enum Ty {
 ///     #[cast]
 ///     RigidTy(RigidTy),
 ///     #[variable(ParameterKind::Ty)]

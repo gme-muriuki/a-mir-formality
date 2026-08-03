@@ -1,4 +1,4 @@
-use crate::grammar::{Predicate, Relation, Wc, WcData, Wcs};
+use crate::grammar::{Predicate, Relation, Wc, Wcs};
 use formality_core::judgment_fn;
 
 use crate::prove::{
@@ -34,26 +34,26 @@ judgment_fn! {
             (let p1 = binder.instantiate_with(&subst).unwrap())
             (prove_wc(decls, env, assumptions, p1) => c)
             --- ("forall")
-            (prove_wc(decls, env, assumptions, WcData::ForAll(binder)) => c.pop_subst(&subst))
+            (prove_wc(decls, env, assumptions, Wc::ForAll(binder)) => c.pop_subst(&subst))
         )
 
         (
             (prove_wc(decls, env, (assumptions, p1), p2) => c)
             --- ("implies")
-            (prove_wc(decls, env, assumptions, WcData::Implies(p1, p2)) => c)
+            (prove_wc(decls, env, assumptions, Wc::Implies(p1, p2)) => c)
         )
 
         (
             (a in assumptions)!
             (prove_via(decls, env, assumptions, a, goal) => c)
             ----------------------------- ("assumption - predicate")
-            (prove_wc(decls, env, assumptions, WcData::Predicate(goal)) => c)
+            (prove_wc(decls, env, assumptions, Wc::Predicate(goal)) => c)
         )
         (
             (a in assumptions)!
             (prove_via(decls, env, assumptions, a, goal) => c)
             ----------------------------- ("assumption - relation")
-            (prove_wc(decls, env, assumptions, WcData::Relation(goal)) => c)
+            (prove_wc(decls, env, assumptions, Wc::Relation(goal)) => c)
         )
 
 
@@ -130,7 +130,7 @@ judgment_fn! {
         (
             (prove_sub(decls, env, assumptions, a, b) => c)
             ----------------------------- ("subtype")
-            (prove_wc(decls, env, assumptions, WcData::Relation(Relation::Sub(a, b))) => c)
+            (prove_wc(decls, env, assumptions, Wc::Relation(Relation::Sub(a, b))) => c)
         )
 
         (

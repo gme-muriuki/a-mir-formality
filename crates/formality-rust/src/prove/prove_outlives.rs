@@ -1,5 +1,5 @@
 use crate::grammar::Wc;
-use crate::grammar::{LtData, Parameter, Relation, RigidTy, Wcs};
+use crate::grammar::{Lt, Parameter, Relation, RigidTy, Wcs};
 use crate::prove::{decls::Program, prove};
 use formality_core::{judgment_fn, Set, Upcast};
 
@@ -49,19 +49,19 @@ judgment_fn! {
         // 'static outlives us all
         (
             ----------------------------- ("static outlives everything")
-            (prove_outlives(_decls, _env, _assumptions, LtData::Static, _b) => Constraints::none(env))
+            (prove_outlives(_decls, _env, _assumptions, Lt::Static, _b) => Constraints::none(env))
         )
 
         // Everything outlives 'erased
         (
             ----------------------------- ("anything outlives erased")
-            (prove_outlives(_decls, _env, _assumptions, _a, LtData::Erased) => Constraints::none(env))
+            (prove_outlives(_decls, _env, _assumptions, _a, Lt::Erased) => Constraints::none(env))
         )
 
         // 'erased outlives 'static
         (
             ----------------------------- ("erased outlives static")
-            (prove_outlives(_decls, _env, _assumptions, LtData::Erased, LtData::Static) => Constraints::none(env))
+            (prove_outlives(_decls, _env, _assumptions, Lt::Erased, Lt::Static) => Constraints::none(env))
         )
 
         // A rigid type `r` outlives `b` if all of `r`'s parameters outlive `b`

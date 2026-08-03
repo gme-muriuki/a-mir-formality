@@ -1,4 +1,4 @@
-use crate::grammar::{WcData, Wcs};
+use crate::grammar::{Wc, Wcs};
 use formality_core::judgment_fn;
 
 use crate::prove::{
@@ -16,8 +16,8 @@ judgment_fn! {
         _decls: Program,
         env: Env,
         assumptions: Wcs,
-        via: WcData,
-        goal: WcData,
+        via: Wc,
+        goal: Wc,
     ) => Constraints {
         debug(goal, via, assumptions, env)
 
@@ -29,7 +29,7 @@ judgment_fn! {
             (if skel_c == skel_g)!
             (prove(decls, env, assumptions, Wcs::all_eq(parameters_c, parameters_g)) => c)
             ----------------------------- ("predicate-congruence-axiom")
-            (prove_via(decls, env, assumptions, WcData::Predicate(pred_1), WcData::Predicate(pred_2)) => c)
+            (prove_via(decls, env, assumptions, Wc::Predicate(pred_1), Wc::Predicate(pred_2)) => c)
         )
 
         (
@@ -38,7 +38,7 @@ judgment_fn! {
             (if skel_c == skel_g)
             (if parameters_c == parameters_g)! // for relations, we require 100% match
             ----------------------------- ("relation-axiom")
-            (prove_via(_decls, env, _assumptions, WcData::Relation(rel_1), WcData::Relation(rel_2)) => Constraints::none(env))
+            (prove_via(_decls, env, _assumptions, Wc::Relation(rel_1), Wc::Relation(rel_2)) => Constraints::none(env))
         )
 
         // If you have `where for<'a> T: Trait<'a>` then you can prove `T: Trait<'b>` for any `'b`.
@@ -48,7 +48,7 @@ judgment_fn! {
             // Try to prove `T: Trait<?a> == goal`.
             (prove_via(decls, env, assumptions, via1, goal) => c)
             ----------------------------- ("forall")
-            (prove_via(decls, env, assumptions, WcData::ForAll(binder), goal) => c.pop_subst(&subst))
+            (prove_via(decls, env, assumptions, Wc::ForAll(binder), goal) => c.pop_subst(&subst))
         )
 
         // If you have `where if (T: Debug) T: Foo` (not in Rust but it should be...)...
@@ -58,7 +58,7 @@ judgment_fn! {
             // ...and we can prove `T: Debug`... then it holds.
             (prove_after(decls, c, assumptions, wc_condition) => c)
             ----------------------------- ("implies")
-            (prove_via(decls, env, assumptions, WcData::Implies(wc_condition, wc_consequence), goal) => c)
+            (prove_via(decls, env, assumptions, Wc::Implies(wc_condition, wc_consequence), goal) => c)
         )
     }
 }

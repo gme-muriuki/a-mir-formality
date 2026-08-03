@@ -1,7 +1,7 @@
 //! Newtypes wrapping MiniRust types, plus value/terminator constructors
 //! and type translation from formality-rust types to MiniRust types.
 
-use crate::grammar::{Crates, Fallible, Parameter, RigidName, ScalarId, Ty, TyData};
+use crate::grammar::{Crates, Fallible, Parameter, RigidName, ScalarId, Ty};
 use formality_core::Upcast;
 use libspecr::hidden::GcCow;
 use libspecr::list;
@@ -193,8 +193,8 @@ pub(super) fn minirust_ty(crates: &Crates, ty: &Ty) -> Fallible<lang::Type> {
             RigidName::FnDef(_) => Ok(unit_ty()),
             RigidName::Raw(_) | RigidName::FnPtr(_) => unimplemented!(),
         },
-        TyData::AliasTy(_) | TyData::PredicateTy(_) => unimplemented!(),
-        TyData::Variable(v) => anyhow::bail!("unmonomorphized {v:?}"),
+        Ty::AliasTy(_) | Ty::PredicateTy(_) => unimplemented!(),
+        Ty::Variable(v) => anyhow::bail!("unmonomorphized {v:?}"),
     }
 }
 

@@ -1,8 +1,8 @@
 use std::ops::Deref;
 
 use crate::grammar::{
-    AliasTy, Const, ConstData, Fallible, Lt, LtData, Parameter, Parameters, PtrKind, RefKind,
-    RigidName, RigidTy, ScalarId, ScalarValue, Ty, Variable,
+    AliasTy, Const, Fallible, Lt, Parameter, Parameters, PtrKind, RefKind, RigidName, RigidTy,
+    ScalarId, ScalarValue, Ty, Variable,
 };
 
 use super::{context::Context, syntax};
@@ -17,10 +17,10 @@ pub fn lower_generic_arg(ctx: &mut Context, parameter: &Parameter) -> Fallible<s
 
 pub fn lower_const(ctx: &mut Context, konst: &Const) -> Fallible<syntax::ConstExpr> {
     match konst {
-        ConstData::RigidValue(_) => {
+        Const::RigidValue(_) => {
             todo!("lowering rigid const values is not implemented yet")
         }
-        ConstData::Scalar(value) => {
+        Const::Scalar(value) => {
             let (value, suffix) = match value {
                 ScalarValue::U8(v) => (v.to_string(), "u8"),
                 ScalarValue::U16(v) => (v.to_string(), "u16"),
@@ -42,10 +42,10 @@ pub fn lower_const(ctx: &mut Context, konst: &Const) -> Fallible<syntax::ConstEx
                 suffix: suffix.to_owned(),
             })
         }
-        ConstData::Block(_) => {
+        Const::Block(_) => {
             todo!("lowering const block expressions is not implemented yet")
         }
-        ConstData::Variable(core_variable) => Ok(syntax::ConstExpr::Ident(
+        Const::Variable(core_variable) => Ok(syntax::ConstExpr::Ident(
             ctx.core_variable_to_string(&core_variable)?,
         )),
     }
@@ -203,9 +203,9 @@ pub fn lower_ptr(
 
 pub fn lower_lt(ctx: &mut Context, lt: &Lt) -> Fallible<String> {
     match lt {
-        LtData::Static => Ok("'static".to_owned()),
-        LtData::Erased => Ok("'erased".to_owned()),
-        LtData::Variable(core_variable) => ctx.core_variable_to_string(&core_variable),
+        Lt::Static => Ok("'static".to_owned()),
+        Lt::Erased => Ok("'erased".to_owned()),
+        Lt::Variable(core_variable) => ctx.core_variable_to_string(&core_variable),
     }
 }
 

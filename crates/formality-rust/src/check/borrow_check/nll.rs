@@ -10,7 +10,7 @@ use crate::grammar::expr::{Block, Expr, Init, Literal, PlaceExpr, Stmt};
 use crate::grammar::{
     AliasName, AliasTy, AssociatedItemId, ExistentialVar, FeatureGateName, FieldName, Fn, Lt,
     Parameter, Predicate, RefKind, Relation, RigidName, RigidTy, ScalarId, Struct, StructBoundData,
-    TraitId, TraitRef, Ty, TyData, Variable, VariantId, Wcs, WhereClause,
+    TraitId, TraitRef, Ty, Variable, VariantId, Wcs, WhereClause,
 };
 use crate::grammar::{FnBoundData, PredicateTy};
 use crate::prove::Safety;
@@ -1052,7 +1052,7 @@ judgment_fn! {
 
         (
             ------------------------------------------------------------ ("rigid")
-            (prove_ty_is_rigid(_env, _assumptions, state, TyData::RigidTy(rigid_ty)) => (rigid_ty, state))
+            (prove_ty_is_rigid(_env, _assumptions, state, Ty::RigidTy(rigid_ty)) => (rigid_ty, state))
         )
 
         (
