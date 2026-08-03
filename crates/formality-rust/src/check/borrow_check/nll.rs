@@ -489,7 +489,7 @@ judgment_fn! {
             // Reborrow constraints change the outlives set without going
             // through `TypeckEnv::prove_judgment`, so run the universal
             // outlives check here as well; otherwise a constraint between
-            // universal regions (e.g. `&mut 'b *p` with `p: &mut 'a T`)
+            // universal regions (e.g. `&'b mut *p` with `p: &'a mut T`)
             // could escape verification entirely when no later goal defers
             // constraints.
             (verify_universal_outlives(env, assumptions, &state.current.outlives) => ())

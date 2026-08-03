@@ -144,10 +144,10 @@ pub enum Expr {
     #[grammar(false)]
     False,
 
-    /// `& expr` or `& mut expr`
+    /// `&'lt expr` or `&'lt mut expr`
     ///
     /// Create a reference. The operand must be a place expression.
-    #[grammar(& $?kind $lt $place)]
+    #[grammar(& $lt $?kind $place)]
     Ref {
         kind: RefKind,
         lt: Lt,
