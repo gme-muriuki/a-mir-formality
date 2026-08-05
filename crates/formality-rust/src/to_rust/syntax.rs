@@ -875,7 +875,7 @@ pub enum Stmt {
     If {
         condition: Expr,
         then_block: Block,
-        else_block: Option<Block>,
+        else_block: Block,
     },
     Expr(Expr),
     Loop {
@@ -922,7 +922,7 @@ impl Pretty for Stmt {
             } => {
                 write!(f, "if {condition} ")?;
                 then_block.fmt_pretty(f, indent)?;
-                if let Some(else_block) = else_block {
+                if !(else_block.stmts.is_empty() && else_block.label.is_none()) {
                     f.write_str(" else ")?;
                     else_block.fmt_pretty(f, indent)?;
                 }

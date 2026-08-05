@@ -320,7 +320,7 @@ fn if_without_else_return_in_then() {
         fn reborrow<'a>(a: &'a mut u8) -> &'a mut u8 {
             exists<'r0, 'r1> {
                 if true {
-                    let b: &'r1 mut u8 = &mut 'r0 *a;
+                    let b: &'r1 mut u8 = &'r0 mut *a;
                     return b;
                 }
                 return a;
