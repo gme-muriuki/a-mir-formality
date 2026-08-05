@@ -2,7 +2,7 @@
 
 use std::fmt::Debug;
 
-use crate::prove::prove::{is_definitely_not_proveable, Constraints, Env, Program};
+use crate::prove::{is_definitely_not_proveable, Constraints, Env, Program};
 use crate::rust::Visit;
 use crate::{
     grammar::{
@@ -160,6 +160,21 @@ fn item_has_non_lifetime_binder(item: &CrateItem) -> bool {
     where_clauses.iter().any(|wc| wc.has_non_lifetime_binder())
 }
 
+/// Checks if *any* crate in the program has the given feature gate enabled.
+// FIXME: ideally, these "global" feature gates should either be on the Program itself,
+// or we should thread through the *active* crate for things like borrowck and allow
+// different crates within a program to have different semantics.
+pub(crate) fn feature_gate_enabled_in_program(
+    program: &Program,
+    feature_gate_name: &FeatureGateName,
+) -> bool {
+    program.crates.crates.iter().any(|c| {
+        c.items
+            .iter()
+            .any(|item| matches!(item, CrateItem::FeatureGate(fg) if fg.name == *feature_gate_name))
+    })
+}
+
 judgment_fn! {
     fn check_crate_item(
         program: Program,
@@ -176,7 +191,7 @@ judgment_fn! {
 
         (
             (check_trait_impl(program, v, crate_id) => ())
-            (check_drop_impl_always_applicable(program, v) => ())
+            (check_drop_impl_always_applicable(program, v, crate_id) => ())
             ------------------------------------------------------------ ("trait impl")
             (check_crate_item(program, CrateItem::TraitImpl(v), crate_id) => ())
         )
@@ -230,7 +245,7 @@ fn prove_goal(
         env,
         assumptions,
         goal.to_wcs(),
-        crate::prove::prove::prove,
+        crate::prove::prove,
     )
 }
 
@@ -282,7 +297,7 @@ fn prove_not_goal(
     assert!(env.encloses((&assumptions, &goal)));
 
     let cs = is_definitely_not_proveable(env, &assumptions, &goal, |env, assumptions, goal| {
-        crate::prove::prove::prove(program, env, &assumptions, &goal)
+        crate::prove::prove(program, env, &assumptions, &goal)
     });
     let cs = cs.into_map()?;
     if let Some((_, proof_tree)) = cs.iter().find(|(c, _)| c.unconditionally_true()) {

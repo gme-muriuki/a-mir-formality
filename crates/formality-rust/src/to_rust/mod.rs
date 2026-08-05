@@ -1,4 +1,4 @@
-use crate::grammar::{Crates, Fallible, Parameter, ParameterKind, WhereClause, WhereClauseData};
+use crate::grammar::{Crates, Fallible, Parameter, ParameterKind, WhereClause};
 use crate::to_rust::context::Wrapped;
 use std::cell::LazyCell;
 use std::collections::HashMap;
@@ -127,7 +127,7 @@ pub fn lower_generics_for_binder(
 
     for wc in where_clauses {
         match wc {
-            WhereClauseData::TypeOfConst(konst, ty) => {
+            WhereClause::TypeOfConst(konst, ty) => {
                 let name = match tys::lower_const(ctx, konst)? {
                     syntax::ConstExpr::Ident(id) => id,
                     other => anyhow::bail!(
@@ -150,16 +150,16 @@ pub fn lower_generics_for_binder(
                     }
                 }
             }
-            WhereClauseData::IsImplemented(_, _, _) => {
+            WhereClause::IsImplemented(_, _, _) => {
                 continue;
             }
-            WhereClauseData::AliasEq(_, _) => {
+            WhereClause::AliasEq(_, _) => {
                 continue;
             }
-            WhereClauseData::Outlives(_, _) => {
+            WhereClause::Outlives(_, _) => {
                 continue;
             }
-            WhereClauseData::ForAll(_) => {
+            WhereClause::ForAll(_) => {
                 continue;
             }
         }
@@ -194,21 +194,19 @@ fn lower_where_clause(
     where_clause: &WhereClause,
 ) -> Fallible<Option<syntax::WhereClause>> {
     match where_clause {
-        WhereClauseData::IsImplemented(ty, trait_id, params) => {
-            Ok(Some(syntax::WhereClause::Trait {
-                ty: tys::lower_ty(ctx, ty)?,
-                trait_name: trait_id.deref().clone(),
-                args: params
-                    .iter()
-                    .map(|param| tys::lower_generic_arg(ctx, param))
-                    .collect::<Result<Vec<_>, _>>()?,
-            }))
-        }
-        WhereClauseData::TypeOfConst(_, _) => Ok(None),
-        WhereClauseData::AliasEq(_, _) => {
+        WhereClause::IsImplemented(ty, trait_id, params) => Ok(Some(syntax::WhereClause::Trait {
+            ty: tys::lower_ty(ctx, ty)?,
+            trait_name: trait_id.deref().clone(),
+            args: params
+                .iter()
+                .map(|param| tys::lower_generic_arg(ctx, param))
+                .collect::<Result<Vec<_>, _>>()?,
+        })),
+        WhereClause::TypeOfConst(_, _) => Ok(None),
+        WhereClause::AliasEq(_, _) => {
             anyhow::bail!("lowering `AliasEq` where-clauses is not implemented yet")
         }
-        WhereClauseData::Outlives(parameter, lifetime) => {
+        WhereClause::Outlives(parameter, lifetime) => {
             let lifetime = tys::lower_lt(ctx, lifetime)?;
             let parameter = match parameter {
                 Parameter::Ty(ty) => syntax::Parameter::Type(tys::lower_ty(ctx, ty)?),
@@ -220,7 +218,7 @@ fn lower_where_clause(
                 lifetime,
             }))
         }
-        WhereClauseData::ForAll(binder) => {
+        WhereClause::ForAll(binder) => {
             let Wrapped {
                 ref mut ctx,
                 ref term,

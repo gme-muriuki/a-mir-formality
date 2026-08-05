@@ -43,6 +43,15 @@ pub struct NoApplicableRuleLoc {
     pub line: u32,
 }
 
+/// What a single test covered: the rules it proved and the fallible premises it
+/// was observed to fail on. This is the inverse of the per-cell maps in
+/// [`Coverage`], for the by-test view of the report.
+#[derive(Default, Debug)]
+pub struct TestCoverage {
+    pub rules: BTreeSet<CoveredRule>,
+    pub premises: BTreeSet<PremiseLoc>,
+}
+
 /// Aggregated coverage data from a JSONL file.
 #[derive(Default, Debug)]
 pub struct Coverage {
@@ -111,6 +120,31 @@ impl Coverage {
     /// The failed proof tree(s) recorded for `test`, or an empty slice if none.
     pub fn negative_trees_for(&self, test: &TestLoc) -> &[FailedTreeNode] {
         self.negative_trees.get(test).map_or(&[], Vec::as_slice)
+    }
+
+    /// Invert the per-cell maps into per-test coverage, keyed by test location.
+    /// A test appears once whether it proved rules, failed premises, or both.
+    /// `BTreeMap`/`BTreeSet` keep the result ordered by source location, so the
+    /// by-test pages are stable across builds.
+    pub fn by_test(&self) -> BTreeMap<TestLoc, TestCoverage> {
+        let mut out: BTreeMap<TestLoc, TestCoverage> = BTreeMap::new();
+        for (rule, locs) in &self.positive {
+            for loc in locs {
+                out.entry(loc.clone())
+                    .or_default()
+                    .rules
+                    .insert(rule.clone());
+            }
+        }
+        for (premise, locs) in &self.negative_premise_tests {
+            for loc in locs {
+                out.entry(loc.clone())
+                    .or_default()
+                    .premises
+                    .insert(premise.clone());
+            }
+        }
+        out
     }
 
     /// True if `judgment_name` (in a file overlapping `judgment_file`) was

@@ -164,9 +164,6 @@ pub enum Wc {
     Implies(Wcs, Arc<Wc>),
 }
 
-/// Temporary alias for migration -- allows `WcData::Variant` to still compile.
-pub type WcData = Wc;
-
 // ---
 
 cast_impl!((TraitRef) <: (Predicate) <: (Wc));

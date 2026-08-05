@@ -253,7 +253,7 @@ pub fn foo() -> () {
                     fn foo() -> u32 {
                         exists<'r0, 'r1> {
                             let v1: u32 = 0 _ u32;
-                            let v2: &'r0 mut u32 = &mut 'r1 v1;
+                            let v2: &'r0 mut u32 = &'r1 mut v1;
                             return *v2;
                         }
                     }

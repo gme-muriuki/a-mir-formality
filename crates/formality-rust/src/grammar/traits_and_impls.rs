@@ -5,7 +5,7 @@ use crate::grammar::{
     TraitId, TraitRef, Ty, Wc, Wcs,
 };
 use crate::grammar::{Fn, Relation};
-use crate::prove::prove::Safety;
+use crate::prove::Safety;
 use crate::rust::Term;
 use formality_core::{term, Upcast};
 
@@ -142,9 +142,6 @@ pub enum WhereClause {
     TypeOfConst(Const, Ty),
 }
 
-/// Temporary alias for migration -- allows `WhereClauseData::Variant` to still compile.
-pub type WhereClauseData = WhereClause;
-
 impl WhereClause {
     pub fn invert(&self) -> Option<Wc> {
         match self {
@@ -216,6 +213,3 @@ pub enum WhereBound {
     #[grammar(for $v0)]
     ForAll(Arc<Binder<WhereBound>>),
 }
-
-/// Temporary alias for migration -- allows `WhereBoundData::Variant` to still compile.
-pub type WhereBoundData = WhereBound;
