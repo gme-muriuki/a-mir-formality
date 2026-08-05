@@ -31,10 +31,35 @@ pub struct Literal {
     pub ty: ScalarId,
 }
 
+impl Block {
+    // Used as the default else branch.
+    pub fn empty() -> Self {
+        Self {
+            label: None,
+            stmts: vec![],
+        }
+    }
+}
+
 /// An optional initializer expression, parsed as `= $expr`.
 #[term(= $expr)]
 pub struct Init {
     pub expr: Expr,
+}
+
+/// The `else` branch of an `if` statement, parsed as `else $block`.
+/// When absent, defaults to an empty block.
+#[term(else $block)]
+pub struct ElseBlock {
+    pub block: Block,
+}
+
+impl Default for ElseBlock {
+    fn default() -> Self {
+        Self {
+            block: Block::empty(),
+        }
+    }
 }
 
 /// A statement within a block.
@@ -56,14 +81,14 @@ pub enum Stmt {
         init: Option<Init>,
     },
 
-    /// `if condition { then } else { else }`
+    /// `if condition { then }` or `if condition { then } else { else }`
     ///
-    /// Conditional statement. Both branches are required.
-    #[grammar(if $condition $then_block else $else_block)]
+    /// Conditional statement. The else branch is optional; when absent it behaves like an empty block
+    #[grammar(if $condition $then_block $?else_block)]
     If {
         condition: Expr,
         then_block: Block,
-        else_block: Block,
+        else_block: ElseBlock,
     },
 
     /// `expr;`

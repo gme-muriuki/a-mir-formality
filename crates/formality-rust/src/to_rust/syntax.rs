@@ -922,8 +922,11 @@ impl Pretty for Stmt {
             } => {
                 write!(f, "if {condition} ")?;
                 then_block.fmt_pretty(f, indent)?;
-                f.write_str(" else ")?;
-                else_block.fmt_pretty(f, indent)
+                if !(else_block.stmts.is_empty() && else_block.label.is_none()) {
+                    f.write_str(" else ")?;
+                    else_block.fmt_pretty(f, indent)?;
+                }
+                Ok(())
             }
             Stmt::Expr(expr) => write!(f, "{expr};"),
             Stmt::Loop { label, body } => {

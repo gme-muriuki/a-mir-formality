@@ -35,7 +35,7 @@ pub fn lower_stmt(ctx: &mut Context, stmt: &Stmt) -> Fallible<syntax::Stmt> {
         } => Ok(syntax::Stmt::If {
             condition: lower_expr(ctx, condition)?,
             then_block: lower_block(ctx, then_block)?,
-            else_block: lower_block(ctx, else_block)?,
+            else_block: lower_block(ctx, &else_block.block)?,
         }),
         Stmt::Expr { expr } => Ok(syntax::Stmt::Expr(lower_expr(ctx, expr)?)),
         Stmt::Loop { label, body } => Ok(syntax::Stmt::Loop {
