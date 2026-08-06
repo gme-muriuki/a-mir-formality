@@ -1,8 +1,11 @@
 #![allow(unused)]
+use crate::grammar::Fallible;
 use crate::grammar::{
     expr::{Block, LabelId, Stmt},
     Ty,
 };
+use anyhow::bail;
+use formality_core::judgment::ProofTree;
 use formality_core::{judgment_fn, term, Set};
 
 #[term]
@@ -103,36 +106,38 @@ impl ControlFlow {
     }
 }
 
-// judgment_fn! {
-//   /// Entry point: This answers the question: "Is this function allowed to end?".
-//   pub(crate) fn check_fn_returns(
-//     output_ty: Ty,
-//     block: Block) => () {
-//     debug(output_ty, block)
+fn check_no_fallthrough(flow: &ControlFlow) -> Fallible<ProofTree> {
+    if flow.can_fall_through {
+        bail!("function may not return a value");
+    }
 
-//     (
-//       // Rules goes here.
-//       // 1. Unit returning function
-//       //
-//       // (output_ty == ())
-//       // ---------------------- ("unit return")
-//       // (check_fn_returns(output_ty, block) => ())
-//       //
-//       // 2. Non-unit returning functions.
-//       //
-//       // (output_ty != ())
-//       // (control_flow_block(block) => flow)
-//       // -------------------- ("non-unit returns")
-//       // (check_fn_returns(output_ty, block) => ())
-//       //
-//     )
-//   }
-// }
+    Ok(ProofTree::leaf("function does not fall through"))
+}
+
+judgment_fn! {
+  /// Checks whether every required path through a function returns a value.
+  pub(crate) fn check_fn_returns( output_ty: Ty, block: Block) => () {
+    debug(output_ty, block)
+
+    (
+      (if output_ty == &Ty::unit())
+      ---------------------------------------------------- ("unit")
+      (check_fn_returns(output_ty, block) => ())
+    )
+
+    (
+      (if output_ty != &Ty::unit())
+      (control_flow_block(block) => flow)
+      (check_no_fallthrough(flow) => ())
+      ---------------------------------------------------- ("non-unit return")
+      (check_fn_returns(output_ty, block) => ())
+    )
+  }
+}
 
 judgment_fn! {
   /// Computes the control flow that can emerge from a block.
-  fn control_flow_block(
-    block: Block) => ControlFlow {
+  fn control_flow_block( block: Block) => ControlFlow {
     debug(block)
 
     (
@@ -149,8 +154,7 @@ judgment_fn! {
 
 judgment_fn! {
   /// Computes the control flow that can emerge from a statement.
-  fn control_flow_stmt(
-    stmt: Stmt) => ControlFlow {
+  fn control_flow_stmt( stmt: Stmt) => ControlFlow {
     debug(stmt)
 
     (
@@ -626,5 +630,32 @@ mod tests {
         assert!(!flow.can_fall_through);
         assert!(flow.breaks.is_empty());
         assert!(flow.continues.is_empty());
+    }
+
+    #[test]
+    fn unit_returning_function_may_fall_through() {
+        check_fn_returns(Ty::unit(), Block::empty())
+            .into_singleton()
+            .expect("unit-returning functions should be allowed to fall through");
+    }
+
+    #[test]
+    fn non_unit_function_with_return_is_accepted() {
+        let block: Block = crate::rust::term(
+            " {
+            return true;
+        }",
+        );
+
+        check_fn_returns(Ty::bool(), block)
+            .into_singleton()
+            .expect("non-unit returning functions should not be allowed to fall through");
+    }
+
+    #[test]
+    fn non_unit_function_that_can_fall_through_is_rejected() {
+        check_fn_returns(Ty::bool(), Block::empty())
+            .into_singleton()
+            .expect_err("non-unit returning function that can fall through should be rejected.");
     }
 }
