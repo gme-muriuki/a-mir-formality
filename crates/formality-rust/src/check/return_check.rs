@@ -5,7 +5,6 @@ use crate::grammar::{
 };
 use formality_core::{judgment_fn, term, Set};
 
-/// Computes the control flow that can emerge from a statement.
 #[term]
 struct ControlFlow {
     can_fall_through: bool,
@@ -130,58 +129,92 @@ impl ControlFlow {
 //   }
 // }
 
-// judgment_fn! {
-//   /// This answers the question: "What control flow can emerge from this block?".
-//   fn control_flow_block(
-//     block: Block) => ControlFlow {
-//     debug(block)
+judgment_fn! {
+  /// Computes the control flow that can emerge from a block.
+  fn control_flow_block(
+    block: Block) => ControlFlow {
+    debug(block)
 
-//     (
-//       // Rules goes here.
-//     )
-//   }
-// }
+    (
+      (let flow = ControlFlow::fallthrough())
+        (for_all(i in 0..stmts.len()) with(flow)
+          (control_flow_stmt(&stmts[i]) => statement_flow)
+            (let flow = flow.then(&statement_flow)))
+      (let flow = flow.exit_block(label.as_ref().map(|label| &label.id)))
+      ----------------------------------------------------- ("block")
+      (control_flow_block(Block { label, stmts }) => flow)
+    )
+  }
+}
 
 judgment_fn! {
-  /// This answers the question: "What control flow can emerge from this one statement.?"
+  /// Computes the control flow that can emerge from a statement.
   fn control_flow_stmt(
     stmt: Stmt) => ControlFlow {
     debug(stmt)
 
     (
       (let flow = ControlFlow::returns())
-      --- ("return")
+      ----------------------------------------------------- ("return")
       (control_flow_stmt(Stmt::Return { expr: _ }) => flow)
     )
 
     (
       (let flow = ControlFlow::break_to(label.clone()))
-      --- ("break")
+      ----------------------------------------------------- ("break")
       (control_flow_stmt(Stmt::Break { label }) => flow)
     )
 
     (
       (let flow = ControlFlow::continue_to(label.clone()))
-      --- ("continue")
+      ----------------------------------------------------- ("continue")
       (control_flow_stmt(Stmt::Continue { label }) => flow)
     )
 
     (
       (let flow = ControlFlow::fallthrough())
-      --- ("expression")
+      ----------------------------------------------------- ("expression")
       (control_flow_stmt(Stmt::Expr { expr: _ }) => flow)
     )
 
     (
       (let flow = ControlFlow::fallthrough())
-      --- ("print")
+      ----------------------------------------------------- ("print")
       (control_flow_stmt(Stmt::Print { expr: _ }) => flow)
     )
 
     (
       (let flow = ControlFlow::fallthrough())
-      --- ("let")
+      ----------------------------------------------------- ("let")
       (control_flow_stmt(Stmt::Let { label: _, id: _, ty: _, init: _ }) => flow)
+    )
+
+    (
+      (control_flow_block(block) => flow)
+      ----------------------------------------------------- ("block")
+      (control_flow_stmt(Stmt::Block(block)) => flow)
+    )
+
+    (
+      (control_flow_block(then_block) => then_flow)
+      (control_flow_block(&else_block.block) => else_flow)
+      (let flow = then_flow.join(else_flow))
+      ----------------------------------------------------- ("if")
+      (control_flow_stmt(Stmt::If { condition: _, then_block, else_block }) => flow)
+    )
+
+    (
+      (control_flow_block(body) => body_flow)
+      (let flow = body_flow.exit_loop(label.as_ref().map(|label| &label.id)))
+      ----------------------------------------------------- ("loop")
+      (control_flow_stmt(Stmt::Loop { label, body}) => flow)
+    )
+
+    (
+      (let block = binder.peek())
+      (control_flow_block(block) => flow)
+      ----------------------------------------------------- ("exists")
+      (control_flow_stmt(Stmt::Exists { binder }) => flow)
     )
   }
 }
@@ -189,6 +222,7 @@ judgment_fn! {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::grammar::expr::Expr;
 
     #[test]
     fn then_ignores_unreachable_breaks() {
@@ -356,9 +390,7 @@ mod tests {
 
     #[test]
     fn return_statement_does_not_fall_through() {
-        let stmt = Stmt::Return {
-            expr: crate::grammar::expr::Expr::True,
-        };
+        let stmt = Stmt::Return { expr: Expr::True };
 
         let (flow, _) = control_flow_stmt(stmt)
             .into_singleton()
@@ -405,9 +437,7 @@ mod tests {
 
     #[test]
     fn expression_statement_can_fall_through() {
-        let stmt = Stmt::Expr {
-            expr: crate::grammar::expr::Expr::True,
-        };
+        let stmt = Stmt::Expr { expr: Expr::True };
 
         let (flow, _) = control_flow_stmt(stmt)
             .into_singleton()
@@ -420,9 +450,7 @@ mod tests {
 
     #[test]
     fn print_statement_can_fall_through() {
-        let stmt = Stmt::Print {
-            expr: crate::grammar::expr::Expr::True,
-        };
+        let stmt = Stmt::Print { expr: Expr::True };
 
         let (flow, _) = control_flow_stmt(stmt)
             .into_singleton()
@@ -442,6 +470,160 @@ mod tests {
             .expect("let statements should produce one control-flow result");
 
         assert!(flow.can_fall_through);
+        assert!(flow.breaks.is_empty());
+        assert!(flow.continues.is_empty());
+    }
+
+    #[test]
+    fn empty_block_can_fall_through() {
+        let (flow, _) = control_flow_block(Block::empty())
+            .into_singleton()
+            .expect("empty block should produce one control-flow result");
+
+        assert!(flow.can_fall_through);
+        assert!(flow.breaks.is_empty());
+        assert!(flow.continues.is_empty());
+    }
+
+    #[test]
+    fn return_after_fall_through_prevents_block_fall_through() {
+        let block = Block {
+            label: None,
+            stmts: vec![
+                Stmt::Expr { expr: Expr::True },
+                Stmt::Return { expr: Expr::True },
+                Stmt::Break {
+                    label: LabelId::new("'test"),
+                },
+            ],
+        };
+
+        let (flow, _) = control_flow_block(block)
+            .into_singleton()
+            .expect("block should produce one control-flow result");
+
+        assert!(!flow.can_fall_through);
+        assert!(flow.breaks.is_empty());
+        assert!(flow.continues.is_empty());
+    }
+
+    #[test]
+    fn matching_break_makes_labeled_block_fall_through() {
+        let block: Block = crate::rust::term(
+            "'block: {
+            break 'block;
+          }",
+        );
+
+        let (flow, _) = control_flow_block(block)
+            .into_singleton()
+            .expect("labeled block should produce one control-flow result");
+
+        assert!(flow.can_fall_through);
+        assert!(flow.breaks.is_empty());
+        assert!(flow.continues.is_empty());
+    }
+
+    #[test]
+    fn nested_block_propagates_return_flow() {
+        let stmt = Stmt::Block(Block {
+            label: None,
+            stmts: vec![Stmt::Return { expr: Expr::True }],
+        });
+
+        let (flow, _) = control_flow_stmt(stmt)
+            .into_singleton()
+            .expect("nested block should produce one control-flow result");
+
+        assert!(!flow.can_fall_through);
+        assert!(flow.breaks.is_empty());
+        assert!(flow.continues.is_empty());
+    }
+
+    #[test]
+    fn if_with_two_returning_branches_does_not_fall_through() {
+        let stmt: Stmt = crate::rust::term(
+            " if true {
+            return true;
+          } else {
+            return false;
+          }
+        ",
+        );
+
+        let (flow, _) = control_flow_stmt(stmt)
+            .into_singleton()
+            .expect("if statement should produce one control-flow result");
+
+        assert!(!flow.can_fall_through);
+        assert!(flow.breaks.is_empty());
+        assert!(flow.continues.is_empty());
+    }
+
+    #[test]
+    fn if_without_an_else_branch_fall_through() {
+        let stmt: Stmt = crate::rust::term(
+            "if true {
+            return true;
+        }",
+        );
+
+        let (flow, _) = control_flow_stmt(stmt)
+            .into_singleton()
+            .expect("if statement should produce one control-flow result");
+
+        assert!(flow.can_fall_through);
+        assert!(flow.breaks.is_empty());
+        assert!(flow.continues.is_empty());
+    }
+
+    #[test]
+    fn loop_with_fallthrough_body_does_not_fall_through() {
+        let stmt: Stmt = crate::rust::term(
+            "loop {
+              true;
+            }",
+        );
+
+        let (flow, _) = control_flow_stmt(stmt)
+            .into_singleton()
+            .expect("loop statement should produce one control-flow result");
+
+        assert!(!flow.can_fall_through);
+        assert!(flow.breaks.is_empty());
+        assert!(flow.continues.is_empty());
+    }
+
+    #[test]
+    fn matching_break_makes_loop_fall_through() {
+        let stmt: Stmt = crate::rust::term(
+            "'outer: loop {
+            break 'outer;
+          }",
+        );
+
+        let (flow, _) = control_flow_stmt(stmt)
+            .into_singleton()
+            .expect("loop statement should produce one control-flow result");
+
+        assert!(flow.can_fall_through);
+        assert!(flow.breaks.is_empty());
+        assert!(flow.continues.is_empty());
+    }
+
+    #[test]
+    fn exists_statement_propagates_inner_return() {
+        let stmt: Stmt = crate::rust::term(
+            "exists<'r> {
+              return true;
+            }",
+        );
+
+        let (flow, _) = control_flow_stmt(stmt)
+            .into_singleton()
+            .expect("exists statement should produce one control-flow result");
+
+        assert!(!flow.can_fall_through);
         assert!(flow.breaks.is_empty());
         assert!(flow.continues.is_empty());
     }
