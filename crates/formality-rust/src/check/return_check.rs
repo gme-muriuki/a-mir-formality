@@ -1,4 +1,3 @@
-#![allow(unused)]
 use crate::grammar::Fallible;
 use crate::grammar::{
     expr::{Block, LabelId, Stmt},
