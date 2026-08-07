@@ -15,7 +15,12 @@ fn empty_body_non_unit_return() {
         fn foo() -> u32 {
         }
     }])
-    .err(expect_test::expect![[r#"function may not return a value"#]])
+    .err(expect_test::expect![[r#"
+        the rule "non-unit return" at (return_check.rs) failed because
+          function may not return a value
+
+        the rule "unit" at (return_check.rs) failed because
+          condition evaluated to false: `output_ty == &Ty::unit()`"#]])
 }
 
 /// A function returning () with an empty body is fine — unit is implicit.
@@ -62,7 +67,12 @@ fn if_else_one_branch_returns() {
             }
         }
     }])
-    .err(expect_test::expect![[r#"function may not return a value"#]])
+    .err(expect_test::expect![[r#"
+        the rule "non-unit return" at (return_check.rs) failed because
+          function may not return a value
+
+        the rule "unit" at (return_check.rs) failed because
+          condition evaluated to false: `output_ty == &Ty::unit()`"#]])
 }
 
 /// An infinite loop never terminates, so it never needs to return.
@@ -92,7 +102,12 @@ fn loop_with_break_no_return() {
             }
         }
     }])
-    .err(expect_test::expect![[r#"function may not return a value"#]])
+    .err(expect_test::expect![[r#"
+        the rule "non-unit return" at (return_check.rs) failed because
+          function may not return a value
+
+        the rule "unit" at (return_check.rs) failed because
+          condition evaluated to false: `output_ty == &Ty::unit()`"#]])
 }
 
 /// A loop with break followed by a return is fine — all paths return.
@@ -155,7 +170,12 @@ fn loop_with_conditional_break_can_fall_through() {
             }
         }
     }])
-    .err(expect_test::expect![[r#"function may not return a value"#]])
+    .err(expect_test::expect![[r#"
+        the rule "non-unit return" at (return_check.rs) failed because
+          function may not return a value
+
+        the rule "unit" at (return_check.rs) failed because
+          condition evaluated to false: `output_ty == &Ty::unit()`"#]])
 }
 
 #[test]
@@ -163,17 +183,22 @@ fn if_without_else_is_rejected_for_non_unit_function() {
     FormalityTest::new(crates![crate Foo {
       fn foo(a: bool) -> u32 {
         if a {
-          return 1_u32
+          return 1_u32;
         }
       }
     }])
-    .err(expect_test::expect![[r#"function may not return a value"#]])
+    .err(expect_test::expect![[r#"
+        the rule "non-unit return" at (return_check.rs) failed because
+          function may not return a value
+
+        the rule "unit" at (return_check.rs) failed because
+          condition evaluated to false: `output_ty == &Ty::unit()`"#]])
 }
 
 #[test]
 fn loop_with_matching_continue_does_not_fall_through() {
     FormalityTest::new(crates![crate Foo {
-      fn foo(a: bool) {
+      fn foo(a: bool) -> u32 {
         'a: loop {
           continue 'a;
         }
@@ -190,22 +215,30 @@ fn loop_with_matching_continue_does_not_fall_through() {
 fn break_targeting_outer_block_makes_fall_through() {
     FormalityTest::new(crates![crate Foo {
       fn foo() -> u32 {
-        'outer {
+        'outer: {
           'inner: loop {
             break 'outer;
           }
         }
       }
     }])
-    .err(expect_test::expect![[r#"function may not return a value"#]])
+    .err(expect_test::expect![[r#"
+        the rule "non-unit return" at (return_check.rs) failed because
+          function may not return a value
+
+        the rule "unit" at (return_check.rs) failed because
+          condition evaluated to false: `output_ty == &Ty::unit()`"#]])
 }
 
 #[test]
 fn exists_with_return_is_accepted() {
     FormalityTest::new(crates![crate Foo {
-      exists<'a> {
-        return 1_i32;
-      }
+      fn foo() -> i32 {
+
+       exists<'a> {
+          return 1_i32;
+       }
+     }
     }])
     .skip_execute()
     .rustc_ok()
