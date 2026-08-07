@@ -135,9 +135,7 @@ judgment_fn! {
         debug(assumptions, env, state, block)
 
         (
-            (borrow_check_block(env, assumptions, state, block, LivePlaces::default()) => state)
-            (for_all(output_ty in env.output_ty.iter())
-                (fall_through_permitted(env, assumptions, state, output_ty) => ()))
+            (borrow_check_block(env, assumptions, state, block, LivePlaces::default()) => _state)
             ------------------------------------------------------------ ("borrow_check")
             (borrow_check(env, assumptions, state, block) => ())
         )
@@ -247,8 +245,6 @@ judgment_fn! {
             (let continue_live = Stmt::loop_(label, body).live_before(&env, &state, places_live_on_exit))
             (let state = state.push_continue_scope(&env.env, label, places_live_on_exit, continue_live)?)
             (borrow_check_loop(env, assumptions, state, body, places_live_on_exit) => state)
-            // The loop exit is reachable only via `break` (revived in `pop_scope`).
-            (let state = state.diverges())
             (let state = state.pop_scope(label))
             ------------------------------------------------------------ ("loop")
             (borrow_check_statement(env, assumptions, state, Stmt::Loop { label, body }, places_live_on_exit) => (env, state))
@@ -768,8 +764,11 @@ fn kill_loans(overwritten_place: &TypedPlaceExpr, state: &FlowState) -> FlowStat
         .retain(|loan| !overwritten_place.is_prefix_of(&loan.place));
 
     FlowState {
+        scopes: state.scopes.clone(),
         current,
-        ..state.clone()
+        breaks: state.breaks.clone(),
+        continues: state.continues.clone(),
+        all_outlives: state.all_outlives.clone(),
     }
 }
 
@@ -1061,31 +1060,6 @@ judgment_fn! {
             (prove_ty_is_rigid(env, assumptions, state, normalized_ty) => (rigid_ty, state))
             ------------------------------------------------------------ ("normalize")
             (prove_ty_is_rigid(env, assumptions, state, ty) => (rigid_ty, state))
-        )
-    }
-}
-
-judgment_fn! {
-    /// Control that falls off the end of a fn body implicitly returns `()`;
-    /// permitted if the end is unreachable or `()` is assignable to the declared output type.
-    fn fall_through_permitted(
-        env: TypeckEnv,
-        assumptions: Wcs,
-        state: FlowState,
-        output_ty: Ty,
-    ) => () {
-        debug(state, output_ty, assumptions, env)
-        (
-            (if state.diverged)!
-            ------------------------------------------------------------- ("end of body unreachable")
-            (fall_through_permitted(_env, _assumptions, state, _output_ty) => ())
-        )
-
-        (
-            (if !state.diverged)
-            (prove_assignable(env, assumptions, state, Ty::unit(), output_ty) => _state)
-            -------------------------------------------------------------- ("implicit unit return")
-            (fall_through_permitted(_env, _assumptions, state, output_ty) => ())
         )
     }
 }

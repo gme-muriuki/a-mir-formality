@@ -15,10 +15,7 @@ fn empty_body_non_unit_return() {
         fn foo() -> u32 {
         }
     }])
-    .err(expect_test::expect![[r#"
-        crates/formality-rust/src/prove/prove_normalize.rs:20:1: no applicable rules for prove_normalize { p: (), assumptions: {}, env: Env { variables: [], bias: Soundness, pending: [], allow_pending_outlives: true } }
-
-        crates/formality-rust/src/prove/prove_normalize.rs:20:1: no applicable rules for prove_normalize { p: u32, assumptions: {}, env: Env { variables: [], bias: Soundness, pending: [], allow_pending_outlives: true } }"#]])
+    .err(expect_test::expect![[r#"function may not return a value"#]])
 }
 
 /// A function returning () with an empty body is fine — unit is implicit.
@@ -65,10 +62,7 @@ fn if_else_one_branch_returns() {
             }
         }
     }])
-    .err(expect_test::expect![[r#"
-        crates/formality-rust/src/prove/prove_normalize.rs:20:1: no applicable rules for prove_normalize { p: (), assumptions: {}, env: Env { variables: [], bias: Soundness, pending: [], allow_pending_outlives: true } }
-
-        crates/formality-rust/src/prove/prove_normalize.rs:20:1: no applicable rules for prove_normalize { p: u32, assumptions: {}, env: Env { variables: [], bias: Soundness, pending: [], allow_pending_outlives: true } }"#]])
+    .err(expect_test::expect![[r#"function may not return a value"#]])
 }
 
 /// An infinite loop never terminates, so it never needs to return.
@@ -98,10 +92,7 @@ fn loop_with_break_no_return() {
             }
         }
     }])
-    .err(expect_test::expect![[r#"
-        crates/formality-rust/src/prove/prove_normalize.rs:20:1: no applicable rules for prove_normalize { p: (), assumptions: {}, env: Env { variables: [], bias: Soundness, pending: [], allow_pending_outlives: true } }
-
-        crates/formality-rust/src/prove/prove_normalize.rs:20:1: no applicable rules for prove_normalize { p: u32, assumptions: {}, env: Env { variables: [], bias: Soundness, pending: [], allow_pending_outlives: true } }"#]])
+    .err(expect_test::expect![[r#"function may not return a value"#]])
 }
 
 /// A loop with break followed by a return is fine — all paths return.
@@ -164,8 +155,59 @@ fn loop_with_conditional_break_can_fall_through() {
             }
         }
     }])
-    .err(expect_test::expect![[r#"
-        crates/formality-rust/src/prove/prove_normalize.rs:20:1: no applicable rules for prove_normalize { p: (), assumptions: {}, env: Env { variables: [], bias: Soundness, pending: [], allow_pending_outlives: true } }
+    .err(expect_test::expect![[r#"function may not return a value"#]])
+}
 
-        crates/formality-rust/src/prove/prove_normalize.rs:20:1: no applicable rules for prove_normalize { p: u32, assumptions: {}, env: Env { variables: [], bias: Soundness, pending: [], allow_pending_outlives: true } }"#]])
+#[test]
+fn if_without_else_is_rejected_for_non_unit_function() {
+    FormalityTest::new(crates![crate Foo {
+      fn foo(a: bool) -> u32 {
+        if a {
+          return 1_u32
+        }
+      }
+    }])
+    .err(expect_test::expect![[r#"function may not return a value"#]])
+}
+
+#[test]
+fn loop_with_matching_continue_does_not_fall_through() {
+    FormalityTest::new(crates![crate Foo {
+      fn foo(a: bool) {
+        'a: loop {
+          continue 'a;
+        }
+      }
+    }])
+    .skip_execute()
+    .rustc_ok()
+    .ok();
+}
+
+/// A break targeting an outer block propagates through the inner loop
+/// and makes execution continue after the outer block.
+#[test]
+fn break_targeting_outer_block_makes_fall_through() {
+    FormalityTest::new(crates![crate Foo {
+      fn foo() -> u32 {
+        'outer {
+          'inner: loop {
+            break 'outer;
+          }
+        }
+      }
+    }])
+    .err(expect_test::expect![[r#"function may not return a value"#]])
+}
+
+#[test]
+fn exists_with_return_is_accepted() {
+    FormalityTest::new(crates![crate Foo {
+      exists<'a> {
+        return 1_i32;
+      }
+    }])
+    .skip_execute()
+    .rustc_ok()
+    .ok();
 }
